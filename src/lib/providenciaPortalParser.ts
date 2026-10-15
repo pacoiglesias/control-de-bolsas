@@ -181,6 +181,8 @@ export function parseProvidenciaContrareciboHtml(content: string): ParsedContrar
 }
 
 export interface ParsedProvidenciaPaymentData {
+  allocations?: Array<{ doctoSap: string; facturaFolio: string; contrareciboNumber: string; paymentDate: string; amount: number; transferRef: string }>;
+  allocationError?: string;
   contrareciboNumber: string;
   paymentDate: string;
   bancoCargo?: string;
@@ -348,12 +350,21 @@ export function parseProvidenciaPaymentPdf(text: string): ParsedProvidenciaPayme
     if (sapMatch) doctoSap = sapMatch[1];
   }
 
-  const finalAmount = rowAmount > 0 ? rowAmount : amount;
+  const allocations = [...text.matchAll(/(?:([0-9]+\/[0-9]+)\s+)?(TR_\d+)\s+([0-9]{3,8})\s+((?:TH|GT)-[0-9]+)\s+([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4})\s+([\d,]+\.\d{2})\s*(?:MXN)?/gi)].map(m => ({
+    doctoSap: m[1] || '', transferRef: m[2].toUpperCase(), facturaFolio: m[3], contrareciboNumber: m[4].toUpperCase(), paymentDate: m[5], amount: Math.round(Number(m[6].replace(/,/g, '')) * 100) / 100,
+  }));
+  const rowTotal = Math.round(allocations.reduce((sum, row) => sum + row.amount, 0) * 100) / 100;
+  const finalAmount = amount > 0 ? amount : (rowTotal || rowAmount);
+  const allocationError = allocations.some(row => row.transferRef !== transferRef || row.amount <= 0)
+    ? 'Las referencias o importes de las filas no corresponden a la transferencia.'
+    : allocations.length > 0 && Math.abs(rowTotal - finalAmount) > 0.01 ? 'La suma de las facturas no coincide con el total de la transferencia.' : undefined;
   const upperCr = contrareciboNumber.toUpperCase();
   const department: 'TH' | 'GT' | 'OTHER' = upperCr.startsWith('TH') ? 'TH' : upperCr.startsWith('GT') ? 'GT' : 'OTHER';
 
   return {
     contrareciboNumber: upperCr,
+    allocations,
+    allocationError,
     paymentDate,
     bancoCargo: 'TRANSFERENCIA',
     transferRef,

@@ -40,6 +40,8 @@ export function parseScaleTicket(text: string): ParsedScaleTicket {
   }
 
   const normalized = text.toUpperCase();
+  // Ordered quantities are not physical scale weights, even when the OC mentions KG.
+  if (/ORDEN\s*DE\s*COMPRA|\bCDB\s*OC\b/i.test(text) && !/PESO\s*NETO|\bTARA\b|PESO\s*BRUTO/i.test(text)) return result;
 
   // 1. Extraer PESO NETO
   const netoMatches = [

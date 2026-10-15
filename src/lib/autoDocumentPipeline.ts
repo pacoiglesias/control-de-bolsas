@@ -1,3 +1,7 @@
+import { findExactPurchaseOrder, purchaseOrderFromText, planProvidenciaPayment } from './providenciaImport';
+import { applyProvidenciaPayment } from './providenciaPaymentApply';
+import { parseOrdenDeCompra } from './ocParser';
+import type { ParsedProvidenciaPaymentData } from './providenciaPortalParser';
 /**
  * autoDocumentPipeline.ts
  * ─────────────────────────────────────────────────────────────────────────────
@@ -13,9 +17,9 @@
  *  - Reactividad inmediata (OrdersContext onSnapshot reacciona al instante).
  */
 
-import { Timestamp, doc, collection, serverTimestamp, runTransaction, writeBatch } from 'firebase/firestore';
+import { Timestamp, doc, serverTimestamp, runTransaction, writeBatch } from 'firebase/firestore';
 import { db, PATHS } from './firebase';
-import { safeUpdateDoc, safeAddDoc } from './safeFirestore';
+import { safeUpdateDoc } from './safeFirestore';
 import { cleanUndefined } from './cleanUndefined';
 import { uploadDocument } from './documentStorage';
 import { logAction, logMandatoryAction } from './logger';
@@ -130,6 +134,7 @@ export interface PipelineAnalysis {
   collisionInvoice?: Invoice;
   needsClarification: boolean;
   rawText?: string;
+  paymentDetail?: ParsedProvidenciaPaymentData;
   ocPiezasInfo?: {
     totalPiezas: number;
     conceptos: Array<{ codigo: string; descripcion: string; cantidad: number; valorUnitario: number }>;
@@ -539,7 +544,8 @@ export function findExistingPayment(
  */
 export async function analyzeDocumentFast(
   file: File,
-  orders: PurchaseOrder[]
+  orders: PurchaseOrder[],
+  extractedText?: string
 ): Promise<PipelineAnalysis> {
   const fileName = file.name.toLowerCase();
   const contentHash = await computeFileContentFingerprint(file);
@@ -559,6 +565,7 @@ export async function analyzeDocumentFast(
   let contrareciboNumber = '';
   let facturaFolios: string[] = [];
   let dueDate = '';
+  let paymentDetail: ParsedProvidenciaPaymentData | undefined;
 
   try {
     // 1. CASO XML CFDI
@@ -581,12 +588,13 @@ export async function analyzeDocumentFast(
     }
     // 2. CASO PDF
     else if (fileName.endsWith('.pdf') || file.type === 'application/pdf') {
-      const text = await extractTextFromPdf(file);
+      const text = extractedText ?? await extractTextFromPdf(file);
       rawText = text;
 
       // 0. Detalle de Pagos Providencia
       const provPayment = parseProvidenciaPaymentPdf(text);
       if (provPayment) {
+        paymentDetail = provPayment;
         docType = 'comprobante_pago';
         confidence = 'alta';
         folio = provPayment.facturaFolio || '';
@@ -699,7 +707,10 @@ export async function analyzeDocumentFast(
         docDate = ocr.fecha ? ocr.fecha.split('T')[0] : docDate;
         detectedOcNumber = ocr.ocNumber || '';
 
-        if (ocr.docKind === 'contrarecibo') {
+        if (ocr.docKind === 'oc_providencia') {
+          docType = 'oc_providencia'; confidence = 'alta';
+          ocPiezasInfo = { totalPiezas: ocr.kilos || 0, conceptos: (ocr.conceptos || []).map(c => ({ codigo: c.codigo || '', descripcion: c.descripcion, cantidad: c.cantidad, valorUnitario: c.valorUnitario })) };
+        } else if (ocr.docKind === 'contrarecibo') {
           docType = 'contrarecibo';
           confidence = 'alta';
           folio = ocr.contrarecibo || ocr.folio || '';
@@ -728,7 +739,9 @@ export async function analyzeDocumentFast(
   }
 
   // Matching de Orden
-  let matchedOrder = matchOrderCanonical(orders, detectedOcNumber, folio, total);
+  let matchedOrder = docType === 'oc_providencia' ? findExactPurchaseOrder(orders, detectedOcNumber, folio) : matchOrderCanonical(orders, detectedOcNumber, folio, total);
+  const paymentPlan = paymentDetail ? planProvidenciaPayment(paymentDetail, orders) : null;
+  if (paymentPlan) matchedOrder = paymentPlan.targets[0]?.order || null;
 
   if (docType === 'contrarecibo' && facturaFolios.length > 0) {
     for (const ff of facturaFolios) {
@@ -796,7 +809,7 @@ export async function analyzeDocumentFast(
     }
   }
 
-  const needsClarification =
+  const needsClarification = paymentPlan ? paymentPlan.errors.length > 0 :
     isSuspectDuplicate ||
     hasFolioCollision ||
     !!(dupCheck as any).needsReview ||
@@ -817,8 +830,8 @@ export async function analyzeDocumentFast(
     trackingKey,
     fileContentSha256: contentHash,
     matchedOrder,
-    autoAssignedLabel,
-    isDuplicate: dupCheck.isDuplicate,
+    autoAssignedLabel: paymentPlan ? (paymentPlan.errors.join(" ") || `${paymentDetail!.transferRef}: ${paymentPlan.targets.length} facturas identificadas · ${total.toFixed(2)}`) : autoAssignedLabel,
+    isDuplicate: paymentPlan ? false : dupCheck.isDuplicate,
     duplicateOrder: dupCheck.order,
     isSuspectDuplicate,
     hasFolioCollision,
@@ -827,6 +840,7 @@ export async function analyzeDocumentFast(
     collisionInvoice: dupCheck.invoice,
     needsClarification,
     rawText,
+    paymentDetail,
     ocPiezasInfo,
     contrareciboNumber,
     facturaFolios,
@@ -914,6 +928,18 @@ export async function applyDocumentFast(
       }
     }
 
+    if (analysis.paymentDetail) {
+      try {
+        const result = await applyProvidenciaPayment(analysis.paymentDetail, allOrdersContext || [], analysis.fileContentSha256);
+        let storageWarning = false;
+        try { await uploadDocument({ file: analysis.file, docKind: 'pago_providencia', folio: analysis.paymentDetail.transferRef || analysis.folio, kilos: 0, total: analysis.total, docDate: analysis.docDate, notes: (analysis.paymentDetail.allocations || []).map(row => 'Factura ' + row.facturaFolio + ': $' + row.amount.toFixed(2)).join(' · ') }); }
+        catch { storageWarning = true; }
+        return { success: true, isDuplicate: result.isDuplicate, storageWarning, message: result.isDuplicate ? 'La transferencia ya estaba registrada en sus facturas; no se duplicaron abonos.' : 'Transferencia ' + analysis.paymentDetail.transferRef + ' aplicada a ' + result.appliedRows + ' facturas por $' + analysis.total.toFixed(2), docType: analysis.docType, folio: analysis.paymentDetail.transferRef || analysis.folio, kilos: 0, total: analysis.total };
+      } catch (error) {
+        return { success: false, needsReview: true, reviewReason: (error as Error).message, message: (error as Error).message, docType: analysis.docType, folio: analysis.folio, kilos: 0, total: analysis.total };
+      }
+    }
+
     // 1. Manejo universal de duplicados absolutos comprobados
   if (analysis.isDuplicate) {
     const ordTarget = analysis.duplicateOrder || targetOrder;
@@ -983,79 +1009,26 @@ export async function applyDocumentFast(
     };
   }
 
-  // 4. Creación de Orden Nueva si el archivo es una Orden Oficial de Providencia
-  if (analysis.docType === 'oc_providencia' && !targetOrder) {
-    const ocNum = analysis.detectedOcNumber || analysis.folio || `OC-${Date.now()}`;
-    const isTH = ocNum.includes('14302') || ocNum.includes('71/') || ocNum.includes('120267114302');
-    const client = isTH ? 'PROV-TH' : 'PROV-GT';
-    const numKilos = Number(analysis.kilos) || 0;
-
-    const newOrderData: Partial<PurchaseOrder> = {
-      folio: ocNum,
-      oc: ocNum,
-      client,
-      department: isTH ? 'TH' : 'GT',
-      creditCycle: { status: 'pedido' },
-      totalKilograms: numKilos,
-      financials: {
-        salePricePerKg: 43,
-        costPricePerKg: 38,
-        commissionRate: 0.08,
-        saleTotal: round2(numKilos * 43),
-        invoiceTotal: round2(numKilos * 43 * 1.16),
-        costTotal: round2(numKilos * 38),
-        commission: round2(numKilos * 43 * 0.08),
-        netCashFlow: round2(numKilos * 43 - numKilos * 38 - numKilos * 43 * 0.08),
-        tradeMargin: round2(numKilos * 43 - numKilos * 38),
-      },
-      createdAt: (serverTimestamp() as any),
-      updatedAt: (serverTimestamp() as any),
-      invoices: [],
-      deliveries: [],
-    };
-
-    if (analysis.ocPiezasInfo && analysis.ocPiezasInfo.conceptos.length > 0) {
-      newOrderData.items = analysis.ocPiezasInfo.conceptos.map((c, idx) => ({
-        id: `item-${idx}-${Date.now()}`,
-        code: c.codigo || 'BOLSAS',
-        description: c.descripcion || 'Bolsa de Polietileno Providencia',
-        quantity: c.cantidad || 0,
-        unit: 'PIEZAS',
-        unitPrice: c.valorUnitario || 0,
-        amount: round2((c.cantidad || 0) * (c.valorUnitario || 0)),
-      }));
-    }
-
-    const docRef = await safeAddDoc(collection(db, PATHS.orders), cleanUndefined(newOrderData));
-
-    try {
-      await uploadDocument({
-        file: analysis.file,
-        docKind: 'oc_providencia',
-        folio: ocNum,
-        ocNumber: ocNum,
-        orderId: docRef.id,
-        orderFolio: ocNum,
-        kilos: numKilos,
-        total: analysis.total || round2(numKilos * 43 * 1.16),
-        docDate: analysis.docDate,
-        notes: `Orden Oficial Providencia ${ocNum} (${numKilos.toLocaleString('es-MX')} kg)`,
-      });
-    } catch (e) {
-      console.warn('Error al subir OC a Storage:', e);
-    }
-
-    return {
-      success: true,
-      message: `Orden de Compra ${ocNum} creada y respaldada exitosamente (${numKilos.toLocaleString('es-MX')} kg para ${client}).`,
-      docType: 'oc_providencia',
-      folio: ocNum,
-      kilos: numKilos,
-      total: analysis.total || round2(numKilos * 43 * 1.16),
-      orderId: docRef.id,
-      orderFolio: ocNum,
-      orderClient: client,
-    };
+  // Purchase orders create their own identity; never attach them by amount or department.
+  if (analysis.docType === 'oc_providencia') {
+    const data = purchaseOrderFromText(analysis.rawText || '');
+    const parsed = parseOrdenDeCompra(analysis.rawText || '');
+    const existing = findExactPurchaseOrder(allOrdersContext || [], data.oc!, data.folio!);
+    const orderId = existing?.id || 'oc-' + data.oc;
+    const ref = doc(db, PATHS.orders, orderId);
+    const duplicate = await runTransaction(db, async txn => {
+      const snapshot = await txn.get(ref);
+      if (snapshot.exists()) return true;
+      txn.set(ref, cleanUndefined({ ...data, processedAt: toSafeTimestamp(analysis.docDate),
+        estimatedDeliveryDate: parsed.estimatedDeliveryDate ? Timestamp.fromDate(parsed.estimatedDeliveryDate) : undefined,
+        notes: 'OC importada desde ' + analysis.file.name, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+      return false;
+    });
+    let storageWarning = false;
+    try { await uploadDocument({ file: analysis.file, docKind: 'oc_providencia', folio: data.folio!, ocNumber: data.oc!, orderId, orderFolio: data.folio!, kilos: data.totalKilograms!, total: analysis.subtotal, docDate: analysis.docDate }); }
+    catch { storageWarning = true; }
+    return { success: true, isDuplicate: duplicate, storageWarning, message: duplicate ? 'La OC ya existe. Se conservó sin duplicar ni reemplazar sus datos.' : 'Orden de compra ' + data.folio + ' registrada con ' + data.items!.length + ' partidas, ' + data.totalKilograms + ' kg y precios del documento.',
+      docType: analysis.docType, folio: data.folio!, kilos: data.totalKilograms!, total: analysis.subtotal, orderId, orderFolio: data.folio, orderClient: data.client };
   }
 
   // 5. Verificación de existencia de orden destino para los demás tipos

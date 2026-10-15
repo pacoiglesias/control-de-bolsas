@@ -311,8 +311,10 @@ export function parseOrdenDeCompra(text: string): ParsedOC {
     }
   }
 
-  const isGt = /P4|Planta\s*4|GT|Evelia/i.test(text || '');
-  const department: 'TH' | 'GT' = isGt ? 'GT' : 'TH';
+  // GTP in the company's RFC does not identify the GT department.
+  const isTh = /TH[-\s]*ALMAC[EÉ]N|JOS[EÉ]\s*NAVA|\b71\s*\/|\b1202671\d+/i.test(text || '');
+  const isGt = /\bP4\b|Planta\s*4|\bGT\b|Evelia|\b43\s*\//i.test(text || '');
+  const department: 'TH' | 'GT' = isTh ? 'TH' : isGt ? 'GT' : 'TH';
 
   const kilosFromItems = round2sum(items);
 

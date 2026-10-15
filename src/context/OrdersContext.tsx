@@ -21,6 +21,7 @@ import { OFFICIAL_VALID_CRS, isSeedDocument, OC_TH_NAVA, OC_GT_EVELIA, OC_TH_ACT
  */
 interface OrdersState {
   orders: PurchaseOrder[];
+  documentOrders: PurchaseOrder[];
   loading: boolean;
   error: string | null;
   activeOrders: PurchaseOrder[];
@@ -30,6 +31,7 @@ interface OrdersState {
 const Ctx = createContext<OrdersState | null>(null);
 
 export function OrdersProvider({ children }: { children: ReactNode }) {
+  const [documentOrders, setDocumentOrders] = useState<PurchaseOrder[]>([]);
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +63,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
         const rawDocs = snap.docs
           .filter((d: any) => !d.data().isDeleted)
           .map((d) => ({ id: d.id, ...(d.data() as Omit<PurchaseOrder, 'id'>) }));
+
+        setDocumentOrders(snap.docs.filter(d => !d.data().isDeleted).map(d => ({ ...d.data(), id: d.id } as PurchaseOrder)));
 
         // 🛡️ DEDUPLICACIÓN CANÓNICA GLOBAL:
         // Agrupa documentos por clave canónica (OC/Folio) para eliminar duplicados reales.
@@ -950,8 +954,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
   }, [orders]);
 
   const value = useMemo(
-    () => ({ orders, loading, error, activeOrders, closedOrders }),
-    [orders, loading, error, activeOrders, closedOrders]
+    () => ({ orders, documentOrders, loading, error, activeOrders, closedOrders }),
+    [orders, documentOrders, loading, error, activeOrders, closedOrders]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

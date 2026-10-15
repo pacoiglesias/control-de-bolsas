@@ -39,7 +39,7 @@ if (process.argv.includes('--manifest')) {
   if (!tests) throw new Error('Missing test verification summary');
   const delivery = { ...published, git: { branch: 'main', tag: 'v' + version, repository: 'https://github.com/pacoiglesias/control-de-bolsas' }, verification: { testsPassed: Number(tests[1]), testsSkippedRequiringEmulator: Number(tests[2]), build: 'passed', lint: 'passed' }, databaseExportIncluded: false };
   zip.file('ENTREGA.json', JSON.stringify(delivery, null, 2));
-  zip.file('LEEME.txt', 'Ver codigo/docs/ENTREGA_V9_12_0.md y ENTREGA_V9_12_1.md. Respaldo de software e historial Git; no contiene credenciales privadas ni exportacion de Firestore.');
+  zip.file('LEEME.txt', 'Ver codigo/docs/ para las notas de entrega de cada version. Respaldo de software e historial Git; no contiene credenciales privadas ni exportacion de Firestore.');
   for (const file of ['deploy.log', 'verificacion-publicacion.json']) if (fs.existsSync(path.join(output, file))) zip.file('verificacion/' + file, fs.readFileSync(path.join(output, file)));
   const bytes = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 6 } });
   const archive = path.join(output, 'control-bolsas-v' + version + '.zip');

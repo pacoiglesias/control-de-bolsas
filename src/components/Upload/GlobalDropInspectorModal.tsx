@@ -1,3 +1,6 @@
+import { ProvidenciaPaymentRows } from './ProvidenciaPaymentRows';
+import type { ParsedProvidenciaPaymentData } from '../../lib/providenciaPortalParser';
+import { analyzeDocumentFast, applyDocumentFast } from '../../lib/autoDocumentPipeline';
 import { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../ui';
 import { parseXmlInvoice } from '../../lib/xmlParser';
@@ -33,9 +36,11 @@ interface GlobalDropInspectorModalProps {
 type DetectedDocType = 'factura_cfdi' | 'ticket_bascula' | 'contrarecibo' | 'remision' | 'comprobante_pago' | 'desconocido';
 
 export function GlobalDropInspectorModal({ file, queuePosition, onClose }: GlobalDropInspectorModalProps) {
-  const { orders } = useOrdersContext();
+  const orderState = useOrdersContext();
+  const orders = orderState.documentOrders || orderState.orders;
   const toast = useToast();
 
+  const [paymentDetail, setPaymentDetail] = useState<ParsedProvidenciaPaymentData | null>(null);
   const [analyzing, setAnalyzing] = useState(true);
   const [docType, setDocType] = useState<DetectedDocType>('desconocido');
   const [confidence, setConfidence] = useState<'alta' | 'media' | 'baja'>('baja');
@@ -110,6 +115,7 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
           // 0. Detectar si es un Detalle de Pagos oficial de Providencia (TR_xxxx, Factura, Contrarecibo)
           const provPayment = parseProvidenciaPaymentPdf(text);
           if (provPayment) {
+            setPaymentDetail(provPayment);
             setDocType('comprobante_pago');
             setConfidence('alta');
             setExtractedFolio(provPayment.facturaFolio || provPayment.transferRef || '');
@@ -458,6 +464,17 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
 
   // Acción de Confirmación y Aplicación Atómica
   const handleConfirmAndApply = async () => {
+    if (ocKind === 'oc_providencia' || docType === 'comprobante_pago') {
+      setSaving(true);
+      try {
+        const analysis = await analyzeDocumentFast(file, orders);
+        const result = await applyDocumentFast(analysis, ocKind ? null : selectedOrder, orders);
+        toast(result.message, result.success ? 'ok' : 'bad');
+        if (result.success) onClose();
+      } catch (error) { toast((error as Error).message, 'bad'); }
+      finally { setSaving(false); }
+      return;
+    }
     if (docType === 'factura_cfdi' && duplicateStatus?.isDuplicate) {
       triggerHaptic('error');
       toast(`⚠️ La Factura #${extractedFolio} ya se encuentra registrada en la orden ${duplicateStatus.order?.folio || duplicateStatus.order?.oc}. No se duplicó.`, 'bad');
@@ -539,63 +556,7 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
     try {
       const orderRef = doc(db, PATHS.orders, selectedOrder.id);
 
-      if (docType === 'comprobante_pago') {
-        const updatedInvoices = [...(selectedOrder.invoices || [])];
-        const invIdx = updatedInvoices.findIndex((i: any) =>
-          (extractedFolio && i.folio === extractedFolio) ||
-          (detectedOcNumber && i.collection?.transferRef === detectedOcNumber) ||
-          (extractedTotal > 0 && Math.abs((i.financials?.invoiceTotal || 0) - extractedTotal) < 1)
-        );
-        const payTs = toSafeTimestamp(extractedDate);
-        if (invIdx !== -1 && updatedInvoices[invIdx]) {
-          const inv = updatedInvoices[invIdx];
-          inv.collection = {
-            ...(inv.collection || {}),
-            paidAmount: extractedTotal,
-            paidAt: payTs,
-            collectedAt: payTs,
-            transferRef: detectedOcNumber || extractedFolio,
-          };
-          inv.creditCycle = {
-            ...(inv.creditCycle || {}),
-            status: 'collected',
-          };
-        }
-
-        await safeUpdateDoc(orderRef, {
-          invoices: cleanUndefined(updatedInvoices),
-          'collection.paidAmount': extractedTotal,
-          'collection.paidAt': payTs,
-          'collection.transferRef': detectedOcNumber || extractedFolio,
-          'creditCycle.status': 'collected',
-          status: 'collected',
-          updatedAt: Timestamp.now(),
-        });
-
-        // Guardar PDF original en Firebase Storage
-        try {
-          setUploadingFile(true);
-          await uploadDocument({
-            file,
-            docKind: 'pago_providencia',
-            folio: extractedFolio || detectedOcNumber || 'S/F',
-            ocNumber: detectedOcNumber,
-            orderId: selectedOrder.id,
-            orderFolio: selectedOrder.folio || selectedOrder.oc,
-            kilos: 0,
-            total: extractedTotal,
-            docDate: extractedDate,
-            notes: `Pago TR ${detectedOcNumber} aplicado a OC ${selectedOrder.folio || selectedOrder.oc}`,
-          });
-        } catch (storErr) {
-          console.warn('No se pudo subir el PDF de pago a Storage:', storErr);
-        } finally {
-          setUploadingFile(false);
-        }
-        sound.playChaChing();
-        triggerHaptic('cash');
-        toast(`✅ Pago ${detectedOcNumber || extractedFolio} de ${money(extractedTotal)} aplicado con éxito a la OC ${selectedOrder.folio || selectedOrder.oc}`, 'ok');
-      } else if (docType === 'factura_cfdi') {
+      if (docType === 'factura_cfdi') {
         const safeDate = toSafeTimestamp(extractedDate);
         const invFolio = extractedFolio?.trim() || 'S/F';
         const numKilos = Number(extractedKilos) || 0;
@@ -1163,6 +1124,7 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
                 </div>
               )}
 
+              {paymentDetail && <ProvidenciaPaymentRows payment={paymentDetail} />}
               {detectedOcNumber && (
                 <div style={{ padding: '8px 12px', borderRadius: 10, background: 'rgba(37, 99, 235, 0.08)', border: '1px solid rgba(37, 99, 235, 0.25)', fontSize: 12, color: 'var(--ink)' }}>
                   🎯 <strong>{docType === 'comprobante_pago' ? 'Referencia de Transferencia:' : 'OC Detectada en Texto:'}</strong> <span className="mono" style={{ fontWeight: 800 }}>{detectedOcNumber}</span>
@@ -1231,7 +1193,7 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
                 </div>
               )}
 
-              {ocAssignmentDoubt && !selectedOrderId && (
+              {ocAssignmentDoubt && !selectedOrderId && !paymentDetail && (
                 <div style={{
                   padding: '10px 12px',
                   borderRadius: 10,
@@ -1410,6 +1372,7 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
                 (() => {
                   const isOc = ocKind === 'oc_providencia';
                   if (isOc) return !extractedFolio && extractedKilos <= 0;
+                  if (paymentDetail?.allocations?.length) return false;
                   if (!selectedOrderId) return true;
                   const kilosRequired = docType === 'factura_cfdi' || docType === 'ticket_bascula' || docType === 'remision';
                   if (kilosRequired && extractedKilos <= 0) return true;

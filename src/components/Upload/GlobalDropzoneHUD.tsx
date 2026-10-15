@@ -1,3 +1,4 @@
+import { ProvidenciaPaymentRows } from './ProvidenciaPaymentRows';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlobalDropInspectorModal } from './GlobalDropInspectorModal';
@@ -24,7 +25,8 @@ interface BatchItemState {
 }
 
 export function GlobalDropzoneHUD() {
-  const { orders } = useOrdersContext();
+  const orderState = useOrdersContext();
+  const orders = orderState.documentOrders || orderState.orders;
   const { user } = useAuth();
   const toast = useToast();
 
@@ -926,11 +928,17 @@ export function GlobalDropzoneHUD() {
                         <span>{currentItem.analysis.suspectReason || 'Existe un pesaje idéntico o muy cercano en la misma fecha. Verifique si es una entrega real independiente.'}</span>
                       )}
                       {!currentItem.analysis?.hasFolioCollision && !currentItem.analysis?.hasCrCollision && !currentItem.analysis?.isSuspectDuplicate && (
-                        <span>El documento no especifica un número de orden canónico inequívoco. Seleccione la Orden de Compra para evitar alterar balances.</span>
+                        <span>{currentItem.analysis?.paymentDetail ? currentItem.analysis.autoAssignedLabel : "El documento no especifica un número de orden inequívoco. Seleccione la Orden de Compra para evitar alterar balances."}</span>
                       )}
                     </div>
 
-                    {!showConfirmationSummary ? (
+                    {currentItem.analysis?.paymentDetail ? <div>
+                      <ProvidenciaPaymentRows payment={currentItem.analysis.paymentDetail} />
+                      <p style={{ fontSize: 12 }}>Se requiere conciliar las facturas indicadas. Elegir otra OC no sustituye el desglose del documento.</p>
+                      <button className="btn" onClick={() => setManualInspectFile(currentItem.file)}>Revisar comprobante</button>
+                      <button className="btn" onClick={() => setBatchQueue(prev => prev.map((item,index) => index === currentIndex ? { ...item, status: 'pending' } : item))}>Volver a comprobar facturas</button>
+                      <button className="btn" onClick={() => handleDiscardCurrent('Pago pendiente de conciliación documental.')}>Cerrar sin aplicar</button>
+                    </div> : !showConfirmationSummary ? (
                       /* PASO 1: SELECCIÓN EXPLÍCITA DE ORDEN Y OPCIONES */
                       <div>
                         {/* Selector de Orden */}

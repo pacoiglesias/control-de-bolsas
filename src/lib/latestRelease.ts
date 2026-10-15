@@ -7,7 +7,7 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
- version: 'v9.12.1: Inicio despejado y cartera consistente', date: '15 de Octubre de 2026', time: '',
- summary: 'Portada enfocada en pendientes diarios, resumen compacto y herramientas bajo demanda. Cartera calculada desde facturas con sus abonos.',
- highlights: ['Menú único para reportes, exportaciones y revisión; selector de vistas accesible.', 'Resumen compacto de cartera, vencido, kilos sin factura y caja, adaptable a móvil.', 'Cálculo compartido de cartera en inicio, barra lateral y auditoría: abonos parciales y varias facturas por CR.', 'Las entregas que exceden la orden solicitan revisión antes de facturar.', 'Un solo asistente de facturas desde inicio y expediente: conceptos reales, fecha del XML y validación transaccional. Sin remisiones fijas ni emisiones dobles prefijadas.'],
+ version: 'v9.13.0: Órdenes de compra y pagos con varias facturas', date: '15 de Octubre de 2026', time: '',
+ summary: 'La importación distingue OC de remisiones, conserva partidas y precios del documento y concilia transferencias por todas sus facturas.',
+ highlights: ['Prioridad de la OC frente a las reglas genéricas de remisión y báscula.', 'Registro de OC con identidad exacta, kilos, partidas, departamento y precio real; sin facturas ni entregas artificiales.', 'Desglose completo de pagos Providencia: factura, contrarrecibo, fecha e importe por fila.', 'Aplicación atómica de las facturas de una transferencia, con comprobantes idempotentes y espejo de cobranza.', 'Acceso a expedientes históricos reales para conciliar documentos sin depender de la lista comercial activa.'],
 };

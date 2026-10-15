@@ -1,3 +1,5 @@
+import { applyProvidenciaPayment } from '../../lib/providenciaPaymentApply';
+import { analyzeDocumentFast, applyDocumentFast } from '../../lib/autoDocumentPipeline';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { doc, addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
@@ -75,7 +77,8 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
   const [selectedTargetOrderId, setSelectedTargetOrderId] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { orders } = useOrdersContext();
+  const orderState = useOrdersContext();
+  const orders = orderState.documentOrders || orderState.orders;
   const { user } = useAuth();
   const toast = useToast();
 
@@ -490,6 +493,12 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
 
   // Procesador Oficial de Detalle de Pagos de Providencia
   const processSingleProvidenciaPayment = async (payment: ParsedProvidenciaPaymentData, sourceName: string): Promise<ProcessedResultItem> => {
+    if (payment.allocations) {
+      try {
+        const result = await applyProvidenciaPayment(payment, orders);
+        return { id: crypto.randomUUID(), fileName: sourceName, folio: payment.transferRef || '', oc: payment.allocations.map(row => row.contrareciboNumber).join(', '), kilos: 0, total: payment.amount, status: result.isDuplicate ? 'warning' : 'success', message: result.isDuplicate ? 'Transferencia ya registrada; sin duplicar abonos.' : 'Transferencia aplicada a ' + result.appliedRows + ' facturas.' };
+      } catch (error) { return { id: crypto.randomUUID(), fileName: sourceName, folio: payment.transferRef || '', oc: '', kilos: 0, total: payment.amount, status: 'error', message: (error as Error).message }; }
+    }
     const parseDateParts = (dStr?: string) => {
       if (!dStr) return null;
       const p = dStr.split('/');
@@ -1069,6 +1078,14 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
         try {
           const text = await extractTextFromPdf(file);
           
+          const canonicalKind = parseOcrData(text).docKind;
+          if (canonicalKind === 'oc_providencia' || canonicalKind === 'pago_providencia') {
+            const analysis = await analyzeDocumentFast(file, orders, text);
+            const result = await applyDocumentFast(analysis, null, orders);
+            results.push({ id: crypto.randomUUID(), fileName: file.name, folio: result.folio, oc: result.orderFolio || analysis.detectedOcNumber, kilos: result.kilos, total: result.total, status: result.success ? (result.isDuplicate ? 'warning' : 'success') : 'error', message: result.message });
+            continue;
+          }
+
           // 0. Detectar si es un Detalle de Pagos oficial de Providencia (TR_xxxx, Factura, Contrarecibo)
           const provPayment = parseProvidenciaPaymentPdf(text);
           if (provPayment) {

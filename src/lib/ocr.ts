@@ -294,6 +294,7 @@ export function parseOcrData(text: string): OcrResult {
   const isRemisionFisica =
     !provPayment &&
     !isCfdiInvoice &&
+    !(/ORDEN\s*DE\s*COMPRA|\bCDB\s*OC\b/i.test(text)) &&
     (/REMISI[OÓ]N|ORDEN\s*DE\s*ENTREGA/i.test(text) ||
      (/GRUPO\s*TEXTIL\s*PROVIDENCIA/i.test(text) &&
       (/CANTIDAD/i.test(text) || /DESCRIPCI[OÓ]N/i.test(text) || /SUB\s*TOTAL/i.test(text)) &&
