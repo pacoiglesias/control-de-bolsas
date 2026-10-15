@@ -39,7 +39,7 @@ La carpeta local y `pacoiglesias/control-de-bolsas`, rama `main`, coincidían en
 - Cuatro pruebas de interacción sobre los componentes reales: filtros, expansión de pendientes, estados vacíos y modo consulta.
 - Pruebas transaccionales con almacenamiento simulado para concurrencia, abonos, edición y eliminación.
 
-Las siete pruebas omitidas requieren un emulador real de Firestore. No se hicieron cobros, entregas ni escrituras de prueba sobre datos de producción. El navegador de revisión no pudo acceder al servidor local: la interacción se verificó con DOM simulado, sin afirmar una inspección visual completa en dispositivos reales.
+Las siete pruebas omitidas requieren un emulador real de Firestore. No se hicieron cobros, entregas ni escrituras de prueba sobre datos de producción. La revisión inicial usó DOM simulado porque el navegador no pudo acceder al servidor local. Después de publicar se revisó visualmente el inicio de escritorio y se probaron filtros, búsqueda, estado vacío y límite inicial de seis pendientes en el sitio real. No se afirma una inspección visual completa en todos los dispositivos.
 
 ## Recorrido recomendado
 
@@ -52,6 +52,12 @@ Las siete pruebas omitidas requieren un emulador real de Firestore. No se hicier
 ## Publicación y recuperación
 
 Destino: Firebase Hosting, sitios `control-de-bolsas-89c88` y `control-de-bolsas-69`. Esta entrega modifica el frontend; no requiere cambios en reglas ni en el código de Cloud Functions desplegado.
+
+La publicación terminó y se comprobó por HTTP que ambos sitios y `bolsas.cobertores.com` sirven la misma versión `9.11.0`, con el mismo commit de código y la misma huella SHA-256 del HTML de la compilación local.
+
+En la revisión posterior se detectó que el acceso con Google rechazaba el dominio principal (`auth/unauthorized-domain`). Con autorización explícita del usuario, se agregaron `bolsas.cobertores.com` y `control-de-bolsas-69.web.app` a la lista de dominios autorizados de Firebase Authentication, conservando los tres dominios previos. Se confirmó el inicio de sesión con Google desde el dominio principal y la carga de **Inicio → Mi día**.
+
+Las siete observaciones operativas visibles del Centinela corresponden a tres contrarrecibos vencidos, tres facturas sin contrarrecibo y una entrega pendiente de facturación. Son pendientes de operación y cobranza; no representan fallos de compilación. Sus saldos y estados se conservan para gestionarlos con los comprobantes correspondientes.
 
 La carpeta de entrega local contiene una copia del código, la compilación desplegable y un respaldo de Git. El manifiesto local registra el commit y el resultado de comprobación HTTP de los sitios. Las variables privadas de entorno permanecen en la carpeta de trabajo y no se incorporan al repositorio público.
 
