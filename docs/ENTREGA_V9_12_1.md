@@ -8,6 +8,7 @@ Se mantiene el rediseño y la cartera compartida de 9.12.0. La revisión de prod
 - La pestaña de facturas prioriza historial y acciones. Datos fiscales y partidas de consulta quedan desplegables.
 - El pendiente de facturación de Órdenes se suma por expediente para evitar que excesos de otra orden oculten entregas sin factura.
 - La revisión de una sobreentrega abre la pestaña Entregas. El resumen muestra una sola unidad de kilos.
+- Hosting desactiva la caché de la ruta inicial y del manifiesto de versión. La verificación detectó que `/` mantenía una hora de caché aunque `/index.html` ya tenía desactivada la caché.
 
 La versión conserva los registros de negocio. Las discrepancias existentes de kilos, costos o asignación documental necesitan revisión contra comprobantes, sin correcciones financieras automáticas.
 
