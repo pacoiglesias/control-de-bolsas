@@ -296,7 +296,7 @@ export default function Orders() {
 
   const totals = useMemo(() => {
     const t = {
-      kilos: 0, kilosEntregados: 0, kilosPendientes: 0, kilosFacturados: 0,
+      kilos: 0, kilosEntregados: 0, kilosPendientes: 0, kilosFacturados: 0, kilosSinFacturar: 0,
       venta: 0, cobrado: 0, comision: 0, neto: 0, deuda: 0,
     };
     for (const { o, s } of rows) {
@@ -305,6 +305,7 @@ export default function Orders() {
       t.kilosEntregados += s.kilosDelivered;
       t.kilosPendientes += Math.max(0, pedidos - s.kilosDelivered);
       t.kilosFacturados += s.kilosInvoiced;
+      t.kilosSinFacturar += Math.max(0, s.kilosDelivered - s.kilosInvoiced);
       t.venta += s.invoiceTotal;
       t.cobrado += s.paidAmount;
       t.comision += s.commission;
@@ -467,7 +468,7 @@ export default function Orders() {
       <OrdersKpiRibbon
         totalKilosPedidos={totals.kilos}
         totalKilosEntregados={totals.kilosEntregados}
-        totalKilosSinFacturar={round2(Math.max(0, totals.kilosEntregados - totals.kilosFacturados))}
+        totalKilosSinFacturar={round2(totals.kilosSinFacturar)}
         totalSinCrCount={counts.sin_cr ?? 0}
         totalCarteraDeuda={totals.deuda}
         totalCobrado={totals.cobrado}

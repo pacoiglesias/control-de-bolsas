@@ -630,7 +630,7 @@ export default function AuditSync() {
             {money(auditoriaCartera.totalCrs)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
-            {auditoriaCartera.countCrs} documentos con CR oficial
+            {auditoriaCartera.countCrs} contrarrecibos con saldo pendiente
           </div>
         </div>
 
@@ -654,19 +654,19 @@ export default function AuditSync() {
             {money(auditoriaCartera.totalDeuda)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
-            Neto a recibir: {money(auditoriaCartera.netoCaja)} (8% contable)
+            Neto estimado: {money(auditoriaCartera.netoCaja)} ({(config.commissionRate * 100).toLocaleString('es-MX')}% de comisión)
           </div>
         </div>
 
         <div style={{ background: 'rgba(16, 185, 129, 0.08)', padding: 14, borderRadius: 12, border: '1px solid rgba(16, 185, 129, 0.3)' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#047857', textTransform: 'uppercase' }}>
-            Diagnóstico de Cuadre
+            Base del cálculo
           </div>
           <div style={{ fontSize: 16, fontWeight: 900, color: '#047857', marginTop: 4 }}>
-            🟢 100% Cuadrado
+            Facturas registradas
           </div>
           <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
-            {activeOrders.length} expedientes activos auditados
+            {activeOrders.length} expedientes · conciliación documental pendiente cuando existan diferencias
           </div>
         </div>
       </div>
@@ -760,7 +760,7 @@ export default function AuditSync() {
                     <th>CR / Doc</th>
                     <th>Factura</th>
                     <th>OC Providencia</th>
-                    <th className="num">Kilos Báscula</th>
+                    <th className="num">Kilos facturados</th>
                     <th className="num">Subtotal</th>
                     <th className="num">Total c/IVA</th>
                     <th className="num">Comisión 8%</th>
@@ -881,7 +881,7 @@ export default function AuditSync() {
                             setEditingCell({ rowKey: r.key, field: 'kilos' });
                             setEditValue(String(r.kilos));
                           }}
-                          title="Clic para editar Kilos de Báscula"
+                          title="Clic para editar kilos de la factura"
                         >
                           {editingCell?.rowKey === r.key && editingCell?.field === 'kilos' ? (
                             <input

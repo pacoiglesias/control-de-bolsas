@@ -61,4 +61,11 @@ describe('Lista de próximos pasos: interacción con los componentes reales', ()
     expect(open).not.toHaveBeenCalled();
     expect(ui.navigate).toHaveBeenCalledWith('/ordenes?abrir=o0&tab=facturas');
   });
+  it('un exceso de entrega abre su revisión sin iniciar una factura', async () => {
+    const open = vi.fn();
+    await render([{ ...orders[0], deliveries: [{ id: 'exceso', date: null, kilos: 1500 }] }], open);
+    await click('Facturar'); await click('Revisar expediente');
+    expect(open).not.toHaveBeenCalled();
+    expect(ui.navigate).toHaveBeenCalledWith('/ordenes?abrir=o0&tab=entregas');
+  });
 });

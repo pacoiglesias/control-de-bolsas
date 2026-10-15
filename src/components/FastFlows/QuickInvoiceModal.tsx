@@ -5,11 +5,12 @@ import { useToast } from '../../context/ToastContext';
 import { useOrders } from '../../hooks/useOrders';
 import { Modal } from '../ui';
 import type { PurchaseOrder, Invoice, PurchaseOrderItem, Delivery } from '../../lib/types';
-import { round2, getOrderSummary, computeFinancials, validateInvoiceWeightGuardrail } from '../../lib/finance';
-import { nombreClienteVisible } from '../../lib/format';
+import { addDays, round2, getOrderSummary, computeFinancials, validateInvoiceWeightGuardrail } from '../../lib/finance';
+import { nombreClienteVisible, toInputDate, fromInputDate } from '../../lib/format';
 import { useConfig } from '../../hooks/useConfig';
 import { useDuplicateRadar } from '../../hooks/useDuplicateRadar';
 import { parseXmlInvoice } from '../../lib/xmlParser';
+import { resolveInvoiceDates } from '../../lib/invoiceDates';
 import { computeItemInvoiceBreakdown } from '../../lib/deliveries';
 import { useInvoiceActions } from '../OrderModal/useInvoiceActions';
 import { triggerHaptic } from '../../lib/hapticEngine';
@@ -26,10 +27,12 @@ import { InvoiceFinancialCard } from './InvoiceFinancialCard';
 export function QuickInvoiceModal({
   orders,
   initialOrderId,
+  onCreated,
   onClose,
 }: {
   orders: PurchaseOrder[];
   initialOrderId?: string | null;
+  onCreated?: (invoice: Invoice) => void;
   onClose: () => void;
 }) {
   const toast = useToast();
@@ -72,6 +75,8 @@ export function QuickInvoiceModal({
     return validOrders[0]?.id || '';
   });
   const [folio, setFolio] = useState('');
+  const [issueDate, setIssueDate] = useState(toInputDate(new Date()));
+  const [dueDate, setDueDate] = useState('');
   const [uuidFiscal, setUuidFiscal] = useState('');
   const [saving, setSaving] = useState(false);
   const [conceptRows, setConceptRows] = useState<ConceptRow[]>([]);
@@ -335,6 +340,7 @@ export function QuickInvoiceModal({
       if (Math.abs(importedSubtotal - parsed.subTotal) > 0.02 || Math.abs(round2(parsed.subTotal * (1 + ivaRate)) - parsed.total) > 0.02) {
         throw new Error('Este XML contiene descuentos o impuestos distintos de la configuración. Revísalo en Subir documento antes de registrarlo.');
       }
+      resolveInvoiceDates(parsed.fecha.slice(0, 10), '', config.creditDays ?? 30);
       const breakdown = computeItemInvoiceBreakdown(selectedOrder, currentSellPrice);
       setConceptRows(parsed.conceptos.map((concept, index) => {
         const matched = breakdown.find(item => (concept.codigo && item.code === concept.codigo) || item.description.trim().toLowerCase() === concept.descripcion.trim().toLowerCase());
@@ -344,6 +350,7 @@ export function QuickInvoiceModal({
           alreadyDelivered: matched?.alreadyDelivered ?? 0, uninvoicedDeliveredKilos: matched?.uninvoicedDeliveredKilos ?? 0,
           remainingOcKilos: matched?.remainingOcKilos ?? availableKilos, maxAvailable: matched?.suggestedKilosToInvoice ?? availableKilos };
       }));
+      setIssueDate(parsed.fecha.slice(0, 10)); setDueDate('');
       if (parsed.folio) setFolio(parsed.folio);
       if (parsed.uuid) setUuidFiscal(parsed.uuid);
       toast(`Factura ${parsed.folio || 'sin folio'} cargada con ${parsed.conceptos.length} conceptos. Revisa los importes y confirma el registro.`, 'ok');
@@ -387,6 +394,9 @@ export function QuickInvoiceModal({
       );
     }
 
+    let dates: ReturnType<typeof resolveInvoiceDates>;
+    try { dates = resolveInvoiceDates(issueDate, dueDate, config.creditDays ?? 30); }
+    catch (error) { return toast((error as Error).message, 'bad'); }
     setSaving(true);
     try {
       const newInvoiceId = crypto.randomUUID();
@@ -426,8 +436,8 @@ export function QuickInvoiceModal({
         },
         creditCycle: {
           status: 'pending',
-          issueDate: Timestamp.now(),
-          dueDate: Timestamp.fromMillis(Date.now() + (config?.creditDays ?? 30) * 24 * 60 * 60 * 1000),
+          issueDate: Timestamp.fromDate(dates.issue),
+          dueDate: Timestamp.fromDate(dates.due),
         },
         collection: {
           paidAmount: 0,
@@ -441,6 +451,7 @@ export function QuickInvoiceModal({
       await saveInvoice(selectedOrder, newInvoice, effectiveConfig);
 
       triggerHaptic('success');
+      onCreated?.(newInvoice);
       onClose();
     } catch (e: any) {
       triggerHaptic('error');
@@ -614,6 +625,7 @@ export function QuickInvoiceModal({
           </div>
         </div>
 
+        <div className="invoice-dates"><label>Fecha de la factura<input className="input" type="date" value={issueDate} onChange={e => { setIssueDate(e.target.value); setDueDate(''); }} required /></label><label>Fecha de vencimiento<input className="input" type="date" value={dueDate || toInputDate(addDays(fromInputDate(issueDate) || new Date(), config.creditDays ?? 30))} onChange={e => setDueDate(e.target.value)} required /></label></div>
         {/* 1. SELECCIÓN DE EXPEDIENTE */}
         <div style={{ marginBottom: 18 }}>
           <label style={{ display: 'block', fontWeight: 800, fontSize: 13, color: 'var(--ink)', marginBottom: 6 }}>

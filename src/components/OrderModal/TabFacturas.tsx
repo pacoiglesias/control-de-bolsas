@@ -1,22 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { useOrderModal } from './OrderModalContext';
 import { PasteTextModal } from '../PasteTextModal';
-import { useInvoiceActions } from './useInvoiceActions';
 import { InvoiceWidget } from './InvoiceWidget';
 import { EmitirFacturaModal } from './EmitirFacturaModal';
 import type { Invoice } from '../../lib/types';
 import { getEffectiveOrderItems } from '../../lib/types';
 import { generatePrefacturaPdf } from '../../lib/prefacturaGenerator';
-import { downloadPrefacturaExcel } from '../../lib/excelTemplateGenerator';
 
 export default function TabFacturas() {
   const ctx = useOrderModal();
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [pegando, setPegando] = useState<'factura' | 'complemento' | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [showEmitirModal, setShowEmitirModal] = useState(false);
 
-  const { saveInvoice } = useInvoiceActions();
 
   const toggleExpandida = (id: string) => {
     setExpandedIds(prev => {
@@ -45,91 +41,7 @@ export default function TabFacturas() {
   const { order, readOnly, provName, config, dynamicConfig, processFacturaText, processPagoText, toast, kilosPendientesDeFacturar } = ctx;
   const invoices = order.invoices || [];
 
-  const isOC9784 = Boolean(
-    (order.oc || '').includes('439784') || 
-    (order.oc || '').includes('12026439784') || 
-    (order.folio || '').includes('9784')
-  );
 
-  const handleDownloadExcel = (num: 1 | 2) => {
-    const precio = order.customSellPrice ?? dynamicConfig.salePricePerKg ?? config.salePricePerKg ?? 0;
-    if (num === 1) {
-      downloadPrefacturaExcel({
-        clientName: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
-        clientRfc: 'GTP930115PU1',
-        clientAddress: 'HIDALGO NORTE 7, CP 90800, TLAXCALA, SANTA ANA CHIAUTEMPAN, MEXICO',
-        clientUsoCfdi: 'Uso CFDI: G01 - Adquisición de mercancias',
-        metodoPago: 'PPD',
-        formaPago: '99 por definir',
-        claveSat: '24141500',
-        unidadSat: 'KGM',
-        oc: '12026439784',
-        notaCondiciones: 'OC 12026439784',
-        items: [
-          {
-            kilos: 1000,
-            description: 'EGBO000018-SC BOLSA POLIETILENO 1.00 M X 1.15 M  60+40x115',
-            unitPrice: precio,
-          },
-        ],
-      }, `Prefactura_1_EGBO000018_1000kg_OC12026439784.xlsx`);
-      toast('📥 Descargada Prefactura 1 de Excel (1,000 kg · $49,880.00)', 'ok');
-    } else {
-      downloadPrefacturaExcel({
-        clientName: 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
-        clientRfc: 'GTP930115PU1',
-        clientAddress: 'HIDALGO NORTE 7, CP 90800, TLAXCALA, SANTA ANA CHIAUTEMPAN, MEXICO',
-        clientUsoCfdi: 'Uso CFDI: G01 - Adquisición de mercancias',
-        metodoPago: 'PPD',
-        formaPago: '99 por definir',
-        claveSat: '24141500',
-        unidadSat: 'KGM',
-        oc: '12026439784',
-        notaCondiciones: 'OC 12026439784',
-        items: [
-          {
-            kilos: 500,
-            description: 'EGBO000094-SC BOLSA POLIETILENO 100 X 125 CM  60+40x125',
-            unitPrice: precio,
-          },
-          {
-            kilos: 500,
-            description: 'EGBO000093-SC BOLSA POLIETILENO 100 X 95 CM  60+40x95',
-            unitPrice: precio,
-          },
-        ],
-      }, `Prefactura_2_EGBO000094_EGBO000093_1000kg_OC12026439784.xlsx`);
-      toast('📥 Descargada Prefactura 2 de Excel (1,000 kg · $49,880.00)', 'ok');
-    }
-  };
-
-  const handleXmlUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.target.value = '';
-  };
-
-  const addInvoiceLocal = async () => {
-    // Kept as escape hatch for advanced users
-    const { Timestamp } = await import('firebase/firestore');
-    const { addDays } = await import('../../lib/finance');
-    const issue = new Date();
-    const due = addDays(issue, config.creditDays);
-    const nuevoId = Date.now().toString();
-    const newInv: Invoice = {
-      id: nuevoId,
-      orderId: order.id || '',
-      folio: '',
-      kilos: kilosPendientesDeFacturar,
-      creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(issue), dueDate: Timestamp.fromDate(due) },
-      collection: { paidAmount: 0, contrareciboNumber: '', notes: '' }
-    };
-    try {
-      await saveInvoice(order, newInv, dynamicConfig);
-      setExpandedIds(prev => new Set(prev).add(nuevoId));
-      toast('Factura creada exitosamente', 'ok');
-    } catch {
-      // error handled in saveInvoice
-    }
-  };
 
   return (
     <>
@@ -145,132 +57,15 @@ export default function TabFacturas() {
         />
       )}
 
-      {/* ⚡ Tarjeta Inteligente: Remisión 6439784 de Evelia (2,000 kg) */}
-      {isOC9784 && kilosPendientesDeFacturar > 0 && (
-        <div style={{
-          background: 'linear-gradient(135deg, rgba(37,99,235,0.08) 0%, rgba(16,185,129,0.08) 100%)',
-          border: '1.5px solid #3b82f6',
-          borderRadius: 12,
-          padding: '12px 16px',
-          marginBottom: 16,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: 10,
-        }}>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 13.5, color: '#1e40af', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>⚡</span> Remisión 6439784: 2,000 kg listos para facturar en 2 de 1,000 kg
-            </div>
-            <div style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
-              Evelia solicitó 2 facturas de $49,880.00 c/u con IVA ($43.00/kg). Descarga los Excel o emítelas en 1 paso:
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={() => handleDownloadExcel(1)}
-              style={{
-                fontSize: 11.5,
-                fontWeight: 700,
-                padding: '6px 12px',
-                borderRadius: 8,
-                border: '1px solid #3b82f6',
-                background: '#eff6ff',
-                color: '#1d4ed8',
-                cursor: 'pointer',
-              }}
-            >
-              📥 Excel Prefactura 1
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDownloadExcel(2)}
-              style={{
-                fontSize: 11.5,
-                fontWeight: 700,
-                padding: '6px 12px',
-                borderRadius: 8,
-                border: '1px solid #059669',
-                background: '#ecfdf5',
-                color: '#047857',
-                cursor: 'pointer',
-              }}
-            >
-              📥 Excel Prefactura 2
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowEmitirModal(true)}
-              style={{
-                fontSize: 12,
-                fontWeight: 800,
-                padding: '6px 14px',
-                borderRadius: 8,
-                border: 'none',
-                background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                color: '#fff',
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(37,99,235,0.3)',
-              }}
-            >
-              ⚡ Facturar en 2 de 1,000 kg ➔
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div>
-          <h3 style={{ margin: 0 }}>Facturas Emitidas</h3>
-          <p className="hint" style={{ margin: 0 }}>Facturas vinculadas a este pedido.</p>
-        </div>
-        {!readOnly && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input type="file" accept=".xml" ref={fileInputRef} style={{ display: 'none' }} onChange={handleXmlUpload} />
-
-            {/* Botón principal: asistente paso a paso */}
-            <button
-              className="btn btn-primary"
-              onClick={() => setShowEmitirModal(true)}
-              style={{ padding: '8px 16px', fontWeight: 800, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              🧾 Emitir Factura
-              {kilosPendientesDeFacturar > 0.01 && (
-                <span style={{ background: 'rgba(255,255,255,0.25)', padding: '1px 7px', borderRadius: 20, fontSize: 11, fontWeight: 900 }}>
-                  {kilosPendientesDeFacturar.toLocaleString('es-MX')} kg
-                </span>
-              )}
-            </button>
-
-            <button className="btn" onClick={() => setPegando('factura')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--line)' }}>📋 PEGAR TEXTO (PDF)</button>
-            <button className="btn" onClick={() => setPegando('complemento')} style={{ background: 'var(--bg-card)', border: '1px dashed var(--ok)', color: 'var(--ok)' }}>💰 PEGAR COMPLEMENTO</button>
-
-            {pegando === 'factura' && (
-              <PasteTextModal
-                title="Pegar texto de la Factura"
-                placeholder="Pega aquí el texto completo copiado del PDF de la Factura…"
-                onConfirm={(text) => processFacturaText(text)}
-                onClose={() => setPegando(null)}
-              />
-            )}
-            {pegando === 'complemento' && (
-              <PasteTextModal
-                title="Pegar texto del Complemento de Pago"
-                placeholder="Pega aquí el texto completo copiado del PDF del Complemento de Pago…"
-                onConfirm={(text) => processPagoText(text)}
-                onClose={() => setPegando(null)}
-              />
-            )}
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <button className="btn" onClick={addInvoiceLocal} style={{ fontSize: 12, opacity: 0.7 }} title="Crear factura en blanco sin asistente">+ En Blanco</button>
-            </div>
-          </div>
-        )}
-      </div>
-
+      <div className="invoice-history-heading"><div><h3>Facturas y cobros</h3><p>Registra el documento real y da seguimiento a su contrarrecibo y pago.</p></div></div>
+      {!readOnly && <div className="invoice-history-actions">
+        <button className="btn btn-primary" onClick={() => setShowEmitirModal(true)}>Registrar factura</button>
+        <button className="btn" onClick={() => setPegando('factura')}>Pegar texto de factura</button>
+        <button className="btn" onClick={() => setPegando('complemento')}>Pegar complemento de pago</button>
+      </div>}
+      {pegando === 'factura' && <PasteTextModal title="Pegar texto de la factura" placeholder="Pega el texto completo de la factura para revisar sus datos." onConfirm={text => processFacturaText(text)} onClose={() => setPegando(null)} />}
+      {pegando === 'complemento' && <PasteTextModal title="Pegar complemento de pago" placeholder="Pega el texto completo del complemento de pago." onConfirm={text => processPagoText(text)} onClose={() => setPegando(null)} />}
+      <details className="work-details"><summary>Consultar datos y partidas para facturar</summary><div>
       {/* 🏛️ Widget de Datos Listos para Facturar en el Portal del SAT (CFDI 4.0) */}
       <div style={{
         background: 'linear-gradient(135deg, rgba(2,132,199,0.08) 0%, rgba(3,105,161,0.12) 100%)',
@@ -380,19 +175,22 @@ export default function TabFacturas() {
         })()}
       </div>
       
+      </div></details>
       {invoices.length === 0 ? (
 
         <div className="empty">
           <span className="empty-icon">🧾</span>
           <strong style={{ display: 'block', fontSize: 14, color: 'var(--ink)' }}>Sin Facturas</strong>
-          No hay facturas registradas. Si la IA detecta que este PDF es una factura, la agregará aquí automáticamente.
+          Registra una factura o carga su XML desde Registrar factura.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {(() => {
             const ORDEN_ESTADO: Record<string, number> = { overdue: 0, pending: 0, in_review: 0, paid: 1, collected: 2 };
             const TITULO_SECCION: Record<string, string> = {
-              pending: '🔴 Por Cobrar',
+              pending: 'Por cobrar',
+              facturado: 'Por cobrar',
+              manual_review: 'Requiere revisión',
               in_review: '🔴 Por Cobrar',
               overdue: '🔴 Por Cobrar',
               paid: '🟡 Con el Contador',

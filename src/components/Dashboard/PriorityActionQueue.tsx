@@ -39,7 +39,7 @@ export function PriorityActionQueue({ orders, onOpenQuickInvoice, onOpenQuickDel
     if (canOperate && task.category === 'delivery' && onOpenQuickDelivery) return onOpenQuickDelivery(task.orderId);
     if (canOperate && (task.category === 'collection' || task.category === 'cash')) return nav('/cobranza');
     const invoice = task.invoiceId ? '&factura=' + encodeURIComponent(task.invoiceId) : '';
-    nav('/ordenes?abrir=' + encodeURIComponent(task.orderId) + '&tab=' + (task.category === 'delivery' ? 'entregas' : 'facturas') + invoice);
+    nav('/ordenes?abrir=' + encodeURIComponent(task.orderId) + '&tab=' + (task.category === 'delivery' || task.needsReview ? 'entregas' : 'facturas') + invoice);
   };
   return (
     <section className="work-panel" aria-labelledby="work-title">
