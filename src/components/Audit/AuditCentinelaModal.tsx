@@ -9,7 +9,6 @@ import { db, PATHS } from '../../lib/firebase';
 import { useToast } from '../../context/ToastContext';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import { sound } from '../../lib/sounds';
-import { HealthGaugeDial } from '../ui/HealthGaugeDial';
 
 interface AuditCentinelaModalProps {
   report: AuditHealthReport;
@@ -68,7 +67,7 @@ export function AuditCentinelaModal({
         toast(`✅ OC sincronizada y cerrada al volumen real entregado.`, 'ok');
       } else if (anomaly.autoFixType === 'open_invoice_modal') {
         onClose();
-        navigate('/ordenes');
+        navigate(anomaly.orderId ? '/ordenes?abrir=' + encodeURIComponent(anomaly.orderId) : '/ordenes');
         toast(`Facturación: Selecciona la orden en Expedientes para facturar.`, 'ok');
       } else if (anomaly.autoFixType === 'calibrate_andres') {
         onClose();
@@ -80,7 +79,7 @@ export function AuditCentinelaModal({
         toast(`Dirígete a Caja Chica para registrar ingresos o arqueo.`, 'ok');
       } else if (anomaly.orderId) {
         onClose();
-        navigate('/ordenes');
+        navigate(anomaly.orderId ? '/ordenes?abrir=' + encodeURIComponent(anomaly.orderId) : '/ordenes');
       } else {
         toast(anomaly.recommendation, 'ok');
       }
@@ -92,7 +91,7 @@ export function AuditCentinelaModal({
   }
 
   return (
-    <Modal title="🛡️ Diagnóstico Centinela" onClose={onClose}>
+    <Modal title="Pendientes de operación" onClose={onClose}>
       {/* El modal-body base ya tiene overflow-y: auto y padding. Solo ponemos flex column. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
@@ -111,25 +110,10 @@ export function AuditCentinelaModal({
             flexWrap: 'wrap',
           }}
         >
-          {/* Dial SVG de salud */}
-          <HealthGaugeDial
-            score={report.score}
-            title={report.score === 100 ? 'ERP Blindado' : 'Auditoría Viva'}
-            subtitle="Centinela Continuo"
-            size={130}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              backdropFilter: 'none',
-              boxShadow: 'none',
-              padding: 0,
-            }}
-          />
-
           {/* Info y chips de conteo */}
           <div style={{ flex: 1, minWidth: 160 }}>
             <div style={{ fontSize: 14, fontWeight: 900, letterSpacing: '-0.3px', marginBottom: 4 }}>
-              {report.score === 100 ? '¡ERP Blindado y Conciliado!' : 'Diagnóstico en Tiempo Real'}
+              {report.totalAnomalies === 0 ? 'Sin pendientes detectados' : 'Revisa estos pendientes'}
             </div>
             <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
               Báscula · Facturación SAT · Andrés · Caja Chica
@@ -152,7 +136,7 @@ export function AuditCentinelaModal({
               )}
               {report.criticalCount === 0 && report.warningCount === 0 && (
                 <span style={{ background: '#10b981', color: '#fff', padding: '2px 10px', borderRadius: 4, fontSize: 10.5, fontWeight: 700 }}>
-                  ✓ Sistema 100% OK
+                  ✓ Sin alertas detectadas
                 </span>
               )}
             </div>
@@ -184,7 +168,7 @@ export function AuditCentinelaModal({
               >
                 <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.2 }}>{iconMap[key] || key}</div>
                 <div style={{ fontSize: 9.5, fontWeight: 800, color: isOk ? '#059669' : isWarn ? '#d97706' : '#dc2626', marginTop: 3 }}>
-                  {isOk ? '✓ OK' : `${sub.score}%`}
+                  {isOk ? 'Sin alertas' : 'Revisar'}
                 </div>
               </div>
             );

@@ -65,6 +65,7 @@ export function DashboardExecutiveView({
       </div>
 
       {/* 3. Pipeline Financiero de 5 Estaciones */}
+      <details className="work-details"><summary>Seguimiento de órdenes y etapas</summary><div>
       <MoneyFlowPipeline
         orders={seguimientoOrders}
         expenses={expenses}
@@ -83,6 +84,7 @@ export function DashboardExecutiveView({
         onQuickInvoice={() => onOpenQuickInvoice(null)}
         onQuickCollection={onOpenQuickCollection}
       />
+      </div></details>
       <details className="work-details">
         <summary>Consultar finanzas y simular compras</summary>
         <div>

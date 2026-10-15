@@ -24,7 +24,7 @@ export function AuditCentinelaBadge() {
         type="button"
         className="centinela-badge"
         onClick={() => setOpenModal(true)}
-        title={`Centinela ERP: Score ${report.score}/100 (${report.totalAnomalies} observaciones). Clic para diagnosticar.`}
+        title={`${report.totalAnomalies} pendientes de operación. Abrir detalle.`}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -43,7 +43,7 @@ export function AuditCentinelaBadge() {
         <span style={{ fontSize: 13, transform: 'scale(1.1)', display: 'inline-block' }}>
           {hasCritical ? '🚨' : '⚠️'}
         </span>
-        <span style={{ letterSpacing: '0.2px' }}>CENTINELA {report.score}%</span>
+        <span style={{ letterSpacing: '0.2px' }}>Pendientes de operación</span>
         {report.totalAnomalies > 0 && (
           <span style={{
             background: badgeColor,

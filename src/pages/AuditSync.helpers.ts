@@ -1,5 +1,6 @@
+import { buildReceivables } from '../lib/receivables';
 import { useMemo } from 'react';
-import { round2, extractCr, computeCommissionFromInvoiceTotal } from '../lib/finance';
+import { round2, computeCommissionFromInvoiceTotal } from '../lib/finance';
 import { fmtDate, toDate } from '../lib/format';
 import type { OrderStatus, PurchaseOrder, FinancialConfig } from '../lib/types';
 
@@ -87,83 +88,12 @@ export interface AuditGridRow {
 /** Totales Auditados en Vivo (Con Deduplicación y Auto-Resolución) */
 export function useAuditoriaCartera(activeOrders: PurchaseOrder[], config: FinancialConfig) {
   return useMemo(() => {
-    let totalCrs = 0;
-    let countCrs = 0;
-    let totalRevision = 0;
-    let countRevision = 0;
-    let totalKilos = 0;
-    const seenUniqueKeys = new Set<string>();
-
-    activeOrders.forEach((o) => {
-      const invoices = o.invoices || [];
-      const defaultSale = config.salePricePerKg ?? null;
-      const pVenta = o.customSellPrice ?? defaultSale;
-
-      if (invoices.length === 0) {
-        const cr = (o.collection?.contrareciboNumber || '').toUpperCase().trim();
-        const folio = (o.folio || '').toUpperCase().trim();
-        const uniqueKey = cr || folio || o.oc || o.id;
-
-        if (seenUniqueKeys.has(uniqueKey)) return;
-        seenUniqueKeys.add(uniqueKey);
-
-        const official = OFFICIAL_MAP[cr] || OFFICIAL_MAP[folio] || OFFICIAL_MAP[o.oc || ''];
-        let amt = (o.collection as any)?.total || (official ? official.total : 0);
-        let k = o.totalKilograms || 0;
-
-        if (k === 0 && amt > 0) {
-          k = Math.round((amt / (pVenta * 1.16)) * 100) / 100;
-        } else if (k > 0 && amt === 0) {
-          amt = round2(k * pVenta * 1.16);
-        } else if (k === 0 && amt === 0 && official) {
-          amt = official.total;
-          k = Math.round((amt / (pVenta * 1.16)) * 100) / 100;
-        }
-
-        totalKilos += k;
-
-        if (cr) {
-          totalCrs += amt;
-          countCrs++;
-        } else {
-          totalRevision += amt;
-          countRevision++;
-        }
-      } else {
-        invoices.forEach((inv) => {
-          const cr = extractCr(inv, o);
-          const folio = (inv.folio || o.folio || '').toUpperCase().trim();
-          const uniqueKey = cr || folio || o.oc || `${o.id}-${inv.id}`;
-
-          if (seenUniqueKeys.has(uniqueKey)) return;
-          seenUniqueKeys.add(uniqueKey);
-
-          const official = OFFICIAL_MAP[cr] || OFFICIAL_MAP[folio] || OFFICIAL_MAP[o.oc || ''];
-          let amt = inv.financials?.invoiceTotal || (official ? official.total : 0);
-          let k = inv.kilos || o.totalKilograms || 0;
-
-          if (k === 0 && amt > 0) {
-            k = Math.round((amt / (pVenta * 1.16)) * 100) / 100;
-          } else if (k > 0 && amt === 0) {
-            amt = round2(k * pVenta * 1.16);
-          } else if (k === 0 && amt === 0 && official) {
-            amt = official.total;
-            k = Math.round((amt / (pVenta * 1.16)) * 100) / 100;
-          }
-
-          totalKilos += k;
-
-          if (cr) {
-            totalCrs += amt;
-            countCrs++;
-          } else {
-            totalRevision += amt;
-            countRevision++;
-          }
-        });
-      }
-    });
-
+    const cartera = buildReceivables(activeOrders, config);
+    const totalCrs = cartera.withCR;
+    const countCrs = cartera.crCount;
+    const totalRevision = cartera.withoutCR;
+    const countRevision = cartera.pending.filter(row => !row.cr).length;
+    const totalKilos = cartera.pending.reduce((sum, row) => sum + row.invoice.kilos, 0);
     const totalDeuda = round2(totalCrs + totalRevision);
     // FIX (auditoría v8.9.5): esta comisión estaba escrita a mano (8%) en vez
     // de leer config.commissionRate -- si algún día cambias el porcentaje en
@@ -199,139 +129,19 @@ export function useAuditoriaCartera(activeOrders: PurchaseOrder[], config: Finan
 export function useAuditSyncGrid(activeOrders: PurchaseOrder[], config: FinancialConfig, gridFilter: string): AuditGridRow[] {
   // Cómputo pesado del modelo de datos: solo se recalcula cuando cambian los pedidos o la configuración financiera
   const allRows = useMemo(() => {
-    const rows: AuditGridRow[] = [];
-
-    const defaultSale = config.salePricePerKg ?? null;
-    const defaultCost = config.costPricePerKg ?? null;
-    // FIX (auditoría v8.9.5): mismo motivo que arriba -- antes 0.08 estaba
-    // escrito a mano dos veces en este mismo bloque.
-    const comisionRate = config.commissionRate ?? 0.08;
-    const seenUniqueKeys = new Set<string>();
-
-    activeOrders.forEach((o) => {
-      const pVenta = o.customSellPrice ?? defaultSale;
-      const pCosto = o.customCostPrice ?? defaultCost;
-      const invoices = o.invoices || [];
-
-      if (invoices.length === 0) {
-        const cr = (o.collection?.contrareciboNumber || '').toUpperCase().trim();
-        const folio = (o.folio || '').toUpperCase().trim();
-        const uniqueKey = cr || folio || o.oc || o.id;
-
-        if (seenUniqueKeys.has(uniqueKey)) return;
-        seenUniqueKeys.add(uniqueKey);
-
-        const official = OFFICIAL_MAP[cr] || OFFICIAL_MAP[folio] || OFFICIAL_MAP[o.oc || ''];
-        let tot = (o.collection as any)?.total || (official ? official.total : 0);
-        let k = o.totalKilograms || 0;
-
-        if (k === 0 && tot > 0) {
-          k = Math.round((tot / (pVenta * 1.16)) * 100) / 100;
-        } else if (k > 0 && tot === 0) {
-          tot = round2(k * pVenta * 1.16);
-        } else if (k === 0 && tot === 0 && official) {
-          tot = official.total;
-          k = Math.round((tot / (pVenta * 1.16)) * 100) / 100;
-        }
-
-        const sub = round2(tot / 1.16);
-        const iva = round2(tot - sub);
-        // FIX (auditoría v8.9.10): calculaba la comisión siempre sobre el
-        // subtotal (sub), ignorando config.commissionBase. Ahora usa
-        // computeCommissionFromInvoiceTotal(), la fuente única de verdad.
-        const com = computeCommissionFromInvoiceTotal(tot, {
-          commissionRate: comisionRate,
-          commissionBase: config?.commissionBase || 'subtotal',
-          ivaRate: typeof config?.ivaRate === 'number' ? config.ivaRate : 0.16,
-        } as any);
-        const neto = round2(tot - com);
-
-        const dueStr = (o.collection as any)?.dueDate ? fmtDate((o.collection as any).dueDate) : (official && official.dueDate ? fmtDate(new Date(`${official.dueDate}T12:00:00`)) : '—');
-        const issueStr = o.processedAt ? fmtDate(o.processedAt) : (official && official.issueDate ? fmtDate(new Date(`${official.issueDate}T12:00:00`)) : '—');
-
-        rows.push({
-          key: `${o.id}-root`,
-          orderId: o.id,
-          oc: o.folio || o.oc || (official ? cr : 'S/OC'),
-          cliente: o.client || (cr.startsWith('TH') ? 'GRUPO TEXTIL PROVIDENCIA (TH)' : 'GRUPO TEXTIL PROVIDENCIA (GT)'),
-          folio: o.folio || (official ? cr : '—'),
-          contrarecibo: cr,
-          kilos: k,
-          precioVenta: pVenta,
-          costoAndres: pCosto,
-          subtotal: sub,
-          iva,
-          totalFactura: tot,
-          comision: com,
-          netoCaja: neto,
-          estatus: (o.creditCycle?.status as OrderStatus) || 'pending',
-          fechaEmision: issueStr,
-          fechaVencimiento: dueStr,
-          rawOrder: o,
-        });
-      } else {
-        invoices.forEach((inv) => {
-          const cr = extractCr(inv, o);
-          const folio = (inv.folio || o.folio || '').toUpperCase().trim();
-          const uniqueKey = cr || folio || o.oc || `${o.id}-${inv.id}`;
-
-          if (seenUniqueKeys.has(uniqueKey)) return;
-          seenUniqueKeys.add(uniqueKey);
-
-          const official = OFFICIAL_MAP[cr] || OFFICIAL_MAP[folio] || OFFICIAL_MAP[o.oc || ''];
-          let tot = inv.financials?.invoiceTotal || (official ? official.total : 0);
-          let k = inv.kilos || o.totalKilograms || 0;
-
-          if (k === 0 && tot > 0) {
-            k = Math.round((tot / (pVenta * 1.16)) * 100) / 100;
-          } else if (k > 0 && tot === 0) {
-            tot = round2(k * pVenta * 1.16);
-          } else if (k === 0 && tot === 0 && official) {
-            tot = official.total;
-            k = Math.round((tot / (pVenta * 1.16)) * 100) / 100;
-          }
-
-          const sub = round2(tot / 1.16);
-          const iva = round2(tot - sub);
-          // FIX (auditoría v8.9.10): calculaba la comisión siempre sobre el
-          // subtotal (sub), ignorando config.commissionBase. Ahora usa
-          // computeCommissionFromInvoiceTotal(), la fuente única de verdad.
-          const com = computeCommissionFromInvoiceTotal(tot, {
-            commissionRate: comisionRate,
-            commissionBase: config?.commissionBase || 'subtotal',
-            ivaRate: typeof config?.ivaRate === 'number' ? config.ivaRate : 0.16,
-          } as any);
-          const neto = round2(tot - com);
-
-          const issueObj = toDate(inv.creditCycle?.issueDate);
-          const dueObj = toDate(inv.creditCycle?.dueDate);
-
-          const dueStr = dueObj ? fmtDate(dueObj) : (official && official.dueDate ? fmtDate(new Date(`${official.dueDate}T12:00:00`)) : '—');
-          const issueStr = issueObj ? fmtDate(issueObj) : (official && official.issueDate ? fmtDate(new Date(`${official.issueDate}T12:00:00`)) : '—');
-
-          rows.push({
-            key: `${o.id}-${inv.id}`,
-            orderId: o.id,
-            invoiceId: inv.id,
-            oc: o.folio || o.oc || (official ? cr : 'S/OC'),
-            cliente: o.client || (cr.startsWith('TH') ? 'GRUPO TEXTIL PROVIDENCIA (TH)' : 'GRUPO TEXTIL PROVIDENCIA (GT)'),
-            folio: inv.folio || o.folio || (official ? cr : '—'),
-            contrarecibo: cr,
-            kilos: k,
-            precioVenta: pVenta,
-            costoAndres: pCosto,
-            subtotal: sub,
-            iva,
-            totalFactura: tot,
-            comision: com,
-            netoCaja: neto,
-            estatus: inv.creditCycle?.status || 'pending',
-            fechaEmision: issueStr,
-            fechaVencimiento: dueStr,
-            rawOrder: o,
-          });
-        });
-      }
+    const rows: AuditGridRow[] = buildReceivables(activeOrders, config).rows.map(({ key, order: o, invoice: inv, total, cr }) => {
+      const subtotal = inv.financials?.saleTotal ?? round2(total / (1 + config.ivaRate));
+      const comision = computeCommissionFromInvoiceTotal(total, config);
+      return {
+        key, orderId: o.id, invoiceId: inv.id, oc: o.folio || o.oc || 'Sin OC', cliente: o.client || 'Sin cliente',
+        folio: inv.folio || 'Sin folio', contrarecibo: cr, kilos: inv.kilos || 0,
+        precioVenta: inv.financials?.salePricePerKg ?? o.customSellPrice ?? config.salePricePerKg,
+        costoAndres: o.customCostPrice ?? config.costPricePerKg, subtotal,
+        iva: round2(total - subtotal), totalFactura: total, comision, netoCaja: round2(total - comision),
+        estatus: inv.creditCycle?.status || 'manual_review',
+        fechaEmision: toDate(inv.creditCycle?.issueDate) ? fmtDate(inv.creditCycle.issueDate) : '—',
+        fechaVencimiento: toDate(inv.creditCycle?.dueDate) ? fmtDate(inv.creditCycle.dueDate) : '—', rawOrder: o,
+      };
     });
 
     return rows;

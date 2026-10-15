@@ -35,7 +35,7 @@ export function PriorityActionQueue({ orders, onOpenQuickInvoice, onOpenQuickDel
   const visible = expanded ? filtered : filtered.slice(0, 6);
   const selectFilter = (key: WorkCategory | 'all') => { setFilter(key); setExpanded(false); };
   const openTask = (task: OperationalTask) => {
-    if (canOperate && task.category === 'invoice' && onOpenQuickInvoice) return onOpenQuickInvoice(task.orderId);
+    if (canOperate && task.category === 'invoice' && !task.needsReview && onOpenQuickInvoice) return onOpenQuickInvoice(task.orderId);
     if (canOperate && task.category === 'delivery' && onOpenQuickDelivery) return onOpenQuickDelivery(task.orderId);
     if (canOperate && (task.category === 'collection' || task.category === 'cash')) return nav('/cobranza');
     const invoice = task.invoiceId ? '&factura=' + encodeURIComponent(task.invoiceId) : '';

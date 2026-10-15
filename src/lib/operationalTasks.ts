@@ -12,6 +12,7 @@ export interface OperationalTask {
   title: string;
   detail: string;
   action: string;
+  needsReview?: boolean;
   reference: string;
   client: string;
   kilos?: number;
@@ -39,8 +40,11 @@ export function buildOperationalTasks(orders: PurchaseOrder[], now = new Date())
     }
     const pendingInvoice = round2(Math.max(0, delivered - invoiced));
     if (pendingInvoice > 0.01) tasks.push({ ...base, id: `invoice-${order.id}`, category: 'invoice',
-      title: 'Registrar factura de kilos entregados', detail: 'La entrega ya está registrada. Vincula la factura para continuar a cobranza.',
-      action: 'Registrar factura', kilos: pendingInvoice, urgent: false, sortDate: 0 });
+      title: delivered > (itemKilos || order.totalKilograms || 0) + 0.01 ? 'Revisar kilos entregados contra la orden' : 'Registrar factura de kilos entregados',
+      detail: delivered > (itemKilos || order.totalKilograms || 0) + 0.01 ? 'Las entregas superan los kilos pedidos. Revisa la orden y las remisiones antes de facturar.' : 'La entrega ya está registrada. Vincula la factura para continuar a cobranza.',
+      action: delivered > (itemKilos || order.totalKilograms || 0) + 0.01 ? 'Revisar expediente' : 'Registrar factura',
+      needsReview: delivered > (itemKilos || order.totalKilograms || 0) + 0.01,
+      kilos: pendingInvoice, urgent: false, sortDate: 0 });
 
     for (const invoice of order.invoices ?? []) {
       const status = invoice.creditCycle?.status;

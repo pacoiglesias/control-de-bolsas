@@ -210,7 +210,7 @@ export function downloadBackupJsonFile(
 
   const data = {
     app: 'BolsasElemental-ERP Master',
-    version: '8.9.60',
+    version: __APP_VERSION__,
     exportDate: now.toISOString(),
     formattedDate: now.toLocaleString('es-MX'),
     counts: {

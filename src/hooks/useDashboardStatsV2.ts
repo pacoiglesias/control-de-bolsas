@@ -1,3 +1,5 @@
+import { buildReceivables } from '../lib/receivables';
+import { computeDeliveredTotals } from '../lib/deliveries';
 import { useMemo } from 'react';
 import { round2, computeCommissionFromInvoiceTotal, normalizarTexto, orderMatchesDepartment } from '../lib/finance';
 import { toDate } from '../lib/format';
@@ -32,7 +34,7 @@ export function useDashboardStats(
     };
 
     const deptOrders = (allDepartmentOrders || activeOrders || []).filter(o => {
-      if (!o) return false;
+      if (!o || o.isDeleted) return false;
       if (!deptFilter || deptFilter === 'ALL') return true;
       return orderMatchesDepartment(o, deptFilter);
     });
@@ -124,58 +126,28 @@ export function useDashboardStats(
       });
     });
 
-    let livePorCobrar = 0;
-    let livePorCobrarConCR = 0;
-    let livePorCobrarSinCR = 0;
-    let liveVencido = 0;
-    const now = Date.now();
-    const seenActiveInvoices = new Set<string>();
+    const receivables = buildReceivables(deptOrders, cfg);
+    const effectivePorCobrar = receivables.total;
+    const effectivePorCobrarConCR = receivables.withCR;
+    const effectivePorCobrarSinCR = receivables.withoutCR;
+    const effectiveVencido = receivables.overdue;
 
-    activeOrders.forEach(o => {
-      if (!o) return;
-      (o.invoices || []).forEach((inv, idx) => {
-        if (!inv) return;
-        const invKey = (inv.id || inv.folio || `${o.id}-${idx}`).trim();
-        if (seenActiveInvoices.has(invKey)) return;
-        seenActiveInvoices.add(invKey);
-
-        const stStatus = inv.creditCycle?.status;
-        if (stStatus === 'pending' || stStatus === 'overdue' || stStatus === 'facturado') {
-          const amt = inv.financials?.invoiceTotal ?? ((Number(inv.kilos) || 0) * cfg.salePricePerKg * (1 + cfg.ivaRate));
-          livePorCobrar += amt;
-          const cr = (inv.collection?.contrareciboNumber || o.collection?.contrareciboNumber || '').trim();
-          if (cr) {
-            livePorCobrarConCR += amt;
-          } else {
-            livePorCobrarSinCR += amt;
-          }
-          const due = toDate(inv.creditCycle?.dueDate);
-          const dueTime: number | null = due ? due.getTime() : null;
-          if (dueTime && dueTime < now) {
-            liveVencido += amt;
-          }
-        }
-      });
-    });
-
-    const effectivePorCobrar = livePorCobrar;
-    const effectivePorCobrarConCR = livePorCobrarConCR;
-    const effectivePorCobrarSinCR = livePorCobrarSinCR;
-    const effectiveVencido = liveVencido;
-
+    let kilosPendientesFacturar = 0;
     let totalKilosDelivered = 0;
     let totalKilosInvoiced = 0;
     deptOrders.forEach(o => {
       if (!o) return;
       const deliveries = o.deliveries || [];
       const invoices = o.invoices || [];
-      deliveries.forEach((d: any) => totalKilosDelivered += Number(d?.kilos) || 0);
+      const delivered = computeDeliveredTotals(deliveries, o.items).kilosEntregados;
+      totalKilosDelivered += delivered;
+      kilosPendientesFacturar += Math.max(0, delivered - invoices.reduce((sum, i) => sum + (Number(i.kilos) || 0), 0));
       invoices.forEach((i: any) => totalKilosInvoiced += Number(i?.kilos) || 0);
     });
-    const kilosPendientesFacturar = Math.max(0, totalKilosDelivered - totalKilosInvoiced);
+    kilosPendientesFacturar = round2(kilosPendientesFacturar);
     const valorPendienteFacturar = kilosPendientesFacturar * cfg.costPricePerKg;
 
-    const deudaTotalProvidencia = effectivePorCobrar + (kpis.montoPendienteFacturar || 0);
+    const deudaTotalProvidencia = effectivePorCobrar;
     const comisionContable = computeCommissionFromInvoiceTotal(deudaTotalProvidencia, cfg);
     const dineroRealARecibir = deudaTotalProvidencia - comisionContable;
 

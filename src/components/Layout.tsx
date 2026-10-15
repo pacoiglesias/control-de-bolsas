@@ -20,7 +20,8 @@ import { OfflineIndicator } from './ui/OfflineIndicator';
 import { OfflineBanner } from './OfflineBanner';
 import { MobileBottomBar } from './Navigation/MobileBottomBar';
 import { AuditCentinelaBadge } from './Audit/AuditCentinelaBadge';
-import { SidebarLiveStatus, SidebarFastActions } from './Navigation/SidebarWidgets';
+import { SidebarLiveStatus } from './Navigation/SidebarWidgets';
+import '../styles/operations.css';
 import { money } from '../lib/format';
 
 type NavItem = {
@@ -317,9 +318,6 @@ export default function Layout() {
           {/* Tarjeta de Resumen en Vivo del Negocio */}
           <SidebarLiveStatus />
 
-          {/* Botones de Captura Rápida Global (1-Clic) */}
-          <SidebarFastActions />
-
           <nav className="nav">
             {navItems.filter((it) => it.roles.includes(role || 'viewer')).map((it) => {
               if (it.type === 'group') {
@@ -364,15 +362,6 @@ export default function Layout() {
                       title="Saldo disponible en efectivo"
                     >
                       {isPrivate ? '••••' : money(saldoCaja)}
-                    </span>
-                  ) : null}
-                  {it.to === '/audit' ? (
-                    <span
-                      className="nav-badge"
-                      style={{ background: 'linear-gradient(135deg, #10b981 0%, #047857 100%)' }}
-                      title="Auditoría y Centinela en línea"
-                    >
-                      100% OK
                     </span>
                   ) : null}
                 </NavLink>
@@ -427,7 +416,7 @@ export default function Layout() {
         <main className="main">
           <OfflineBanner />
           <div className="content">
-            <OverdueBanner />
+            {location.pathname !== '/' && <OverdueBanner />}
             <Outlet />
           </div>
           <footer style={{ padding: '16px 30px 40px', color: 'var(--ink-faint)', fontSize: '12px', textAlign: 'center', lineHeight: 1.5 }}>

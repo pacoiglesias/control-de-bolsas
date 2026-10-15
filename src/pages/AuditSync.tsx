@@ -1,3 +1,4 @@
+import { useAuditoriaCartera, useAuditSyncGrid, type ModeTab } from './AuditSync.helpers';
 import React, { useState, useMemo, Suspense, lazy } from 'react';
 import { doc, writeBatch, Timestamp, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { safeUpdateDoc } from '../lib/safeFirestore';
@@ -9,8 +10,8 @@ import { useExpenses } from '../hooks/useExpenses';
 import { usePurchases } from '../hooks/usePurchases';
 import { useSystemSettings } from '../hooks/useSystemSettings';
 import { camposInvoices } from '../lib/invoiceOps';
-import { round2, extractCr, computeFinancials } from '../lib/finance';
-import { money, fmtDate, toDate } from '../lib/format';
+import { extractCr, computeFinancials } from '../lib/finance';
+import { money } from '../lib/format';
 import { exportToExcel } from '../lib/export';
 import { Card, Empty } from '../components/ui';
 import { confirmDialog } from '../lib/confirmDialog';
@@ -21,11 +22,6 @@ import * as XLSX from 'xlsx';
 
 import { SincronizadorOficialModal } from '../components/Cobranza/SincronizadorOficialModal';
 import { downloadOfficialExcelTemplate } from '../lib/excelTemplateGenerator';
-import {
-  TOTAL_CARTERA_OFICIAL,
-  TOTAL_FACTURAS_REVISION_OFICIAL,
-  DEUDA_TOTAL_PROVIDENCIA_OFICIAL,
-} from '../lib/constants';
 
 const BalanzaComprobacionModal = lazy(() => import('../components/Dashboard/BalanzaComprobacionModal').then(m => ({ default: m.BalanzaComprobacionModal })));
 const OrderModal = lazy(() => import('../components/OrderModal'));
@@ -38,42 +34,6 @@ const ESTATUS_VALIDOS: { value: OrderStatus; label: string }[] = [
   { value: 'pedido', label: '📦 En Proceso' },
   { value: 'manual_review', label: '🔍 Revisión Manual' },
 ];
-
-const OFFICIAL_MAP: Record<string, { total: number; issueDate: string; dueDate: string }> = {
-  // 10 Contrarecibos Vigentes ($805,190.14 MXN)
-  'GT-993':  { total: 110434.32, issueDate: '2026-09-21', dueDate: '2026-10-21' },
-  'GT-962':  { total: 110783.48, issueDate: '2026-09-14', dueDate: '2026-10-14' },
-  'TH-1103': { total:  74820.00, issueDate: '2026-09-14', dueDate: '2026-10-14' },
-  'GT-929':  { total:  83499.12, issueDate: '2026-09-07', dueDate: '2026-10-07' },
-  'TH-1068': { total:  72086.58, issueDate: '2026-09-07', dueDate: '2026-10-07' },
-  'GT-904':  { total:  49032.04, issueDate: '2026-08-31', dueDate: '2026-09-30' },
-  'TH-1030': { total:  74820.00, issueDate: '2026-08-31', dueDate: '2026-09-30' },
-  'GT-874':  { total:  49880.00, issueDate: '2026-08-24', dueDate: '2026-09-23' },
-  'TH-990':  { total:  98054.60, issueDate: '2026-08-24', dueDate: '2026-09-23' },
-  'TH-946':  { total:  81780.00, issueDate: '2026-08-17', dueDate: '2026-09-16' }, // VENCIDO
-
-  // 10 Contrarecibos Ya Pagados ($1,032,087.04 MXN)
-  'TH-912': { total:  79826.00, issueDate: '2026-08-10', dueDate: '2026-09-09' },
-  'TH-879': { total: 136300.00, issueDate: '2026-08-03', dueDate: '2026-09-02' },
-  'TH-836': { total: 106720.17, issueDate: '2026-07-27', dueDate: '2026-08-26' },
-  'GT-742': { total:  54520.00, issueDate: '2026-07-20', dueDate: '2026-08-19' },
-  'TH-804': { total: 136300.00, issueDate: '2026-07-20', dueDate: '2026-08-19' },
-  'GT-713': { total:  69001.60, issueDate: '2026-07-13', dueDate: '2026-08-12' },
-  'TH-768': { total: 125254.25, issueDate: '2026-07-13', dueDate: '2026-08-12' },
-  'TH-739': { total: 109040.00, issueDate: '2026-07-06', dueDate: '2026-08-05' },
-  'GT-651': { total: 106477.56, issueDate: '2026-06-29', dueDate: '2026-07-29' },
-  'TH-713': { total: 108647.46, issueDate: '2026-06-29', dueDate: '2026-07-29' },
-
-  // Facturas en Revisión Oficiales ($113,925.92 MXN)
-  '6302':        { total: 14864.24, issueDate: '2026-09-22', dueDate: '2026-10-22' },
-  '12026439774': { total: 14864.24, issueDate: '2026-09-22', dueDate: '2026-10-22' },
-  '43/9774':     { total: 14864.24, issueDate: '2026-09-22', dueDate: '2026-10-22' },
-  '6307':        { total: 99061.68, issueDate: '2026-09-24', dueDate: '2026-10-24' },
-  '120267114302':{ total: 99061.68, issueDate: '2026-09-24', dueDate: '2026-10-24' },
-  '71/14302':    { total: 99061.68, issueDate: '2026-09-24', dueDate: '2026-10-24' },
-};
-
-type ModeTab = 'grid' | 'paste' | 'batch' | 'excel';
 
 export default function AuditSync() {
   const toast = useToast();
@@ -119,99 +79,7 @@ export default function AuditSync() {
   }, [globalOrders]);
 
   // Totales Auditados en Vivo (Con Deduplicación y Auto-Resolución)
-  const auditoriaCartera = useMemo(() => {
-    let totalCrs = 0;
-    let countCrs = 0;
-    let totalRevision = 0;
-    let countRevision = 0;
-    let totalKilos = 0;
-    const seenUniqueKeys = new Set<string>();
-
-    activeOrders.forEach((o) => {
-      const invoices = o.invoices || [];
-      const defaultSale = config.salePricePerKg ?? null;
-      const pVenta = o.customSellPrice ?? defaultSale;
-
-      if (invoices.length === 0) {
-        const cr = (o.collection?.contrareciboNumber || '').toUpperCase().trim();
-        const folio = (o.folio || '').toUpperCase().trim();
-        const uniqueKey = cr || folio || o.oc || o.id;
-
-        if (seenUniqueKeys.has(uniqueKey)) return;
-        seenUniqueKeys.add(uniqueKey);
-
-        const official = OFFICIAL_MAP[cr] || OFFICIAL_MAP[folio] || OFFICIAL_MAP[o.oc || ''];
-        let amt = (o.collection as any)?.total || (official ? official.total : 0);
-        let k = o.totalKilograms || 0;
-
-        if (k === 0 && amt > 0) {
-          k = Math.round((amt / (pVenta * 1.16)) * 100) / 100;
-        } else if (k > 0 && amt === 0) {
-          amt = round2(k * pVenta * 1.16);
-        } else if (k === 0 && amt === 0 && official) {
-          amt = official.total;
-          k = Math.round((amt / (pVenta * 1.16)) * 100) / 100;
-        }
-
-        totalKilos += k;
-
-        if (cr) {
-          totalCrs += amt;
-          countCrs++;
-        } else {
-          totalRevision += amt;
-          countRevision++;
-        }
-      } else {
-        invoices.forEach((inv) => {
-          const cr = extractCr(inv, o);
-          const folio = (inv.folio || o.folio || '').toUpperCase().trim();
-          const uniqueKey = cr || folio || o.oc || `${o.id}-${inv.id}`;
-
-          if (seenUniqueKeys.has(uniqueKey)) return;
-          seenUniqueKeys.add(uniqueKey);
-
-          const official = OFFICIAL_MAP[cr] || OFFICIAL_MAP[folio] || OFFICIAL_MAP[o.oc || ''];
-          let amt = inv.financials?.invoiceTotal || (official ? official.total : 0);
-          let k = inv.kilos || o.totalKilograms || 0;
-
-          if (k === 0 && amt > 0) {
-            k = Math.round((amt / (pVenta * 1.16)) * 100) / 100;
-          } else if (k > 0 && amt === 0) {
-            amt = round2(k * pVenta * 1.16);
-          } else if (k === 0 && amt === 0 && official) {
-            amt = official.total;
-            k = Math.round((amt / (pVenta * 1.16)) * 100) / 100;
-          }
-
-          totalKilos += k;
-
-          if (cr) {
-            totalCrs += amt;
-            countCrs++;
-          } else {
-            totalRevision += amt;
-            countRevision++;
-          }
-        });
-      }
-    });
-
-    const totalDeuda = round2(totalCrs + totalRevision);
-    const comision8 = round2((totalDeuda / 1.16) * 0.08);
-    const netoCaja = round2(totalDeuda - comision8);
-
-    return {
-      totalCrs: round2(totalCrs),
-      countCrs,
-      totalRevision: round2(totalRevision),
-      countRevision,
-      totalDeuda,
-      comision8,
-      netoCaja,
-      totalKilos: round2(totalKilos),
-    };
-  }, [activeOrders, config]);
+  const auditoriaCartera = useAuditoriaCartera(activeOrders, config);
 
   // Purgar duplicados de Firestore permanentemente
   const handleAutoPurgeDuplicates = async () => {
@@ -294,156 +162,7 @@ export default function AuditSync() {
   };
 
   // ─── 1. SÁBANA EN VIVO (DATA GRID) CON DEDUPLICACIÓN CANÓNICA ───────────────
-  const gridRows = useMemo(() => {
-    const rows: {
-      key: string;
-      orderId: string;
-      invoiceId?: string;
-      oc: string;
-      cliente: string;
-      folio: string;
-      contrarecibo: string;
-      kilos: number;
-      precioVenta: number;
-      costoAndres: number;
-      subtotal: number;
-      iva: number;
-      totalFactura: number;
-      comision: number;
-      netoCaja: number;
-      estatus: OrderStatus;
-      fechaEmision: string;
-      fechaVencimiento: string;
-      rawOrder: PurchaseOrder;
-    }[] = [];
-
-    const defaultSale = config.salePricePerKg ?? null;
-    const defaultCost = config.costPricePerKg ?? null;
-    const seenUniqueKeys = new Set<string>();
-
-    activeOrders.forEach((o) => {
-      const pVenta = o.customSellPrice ?? defaultSale;
-      const pCosto = o.customCostPrice ?? defaultCost;
-      const invoices = o.invoices || [];
-
-      if (invoices.length === 0) {
-        const cr = (o.collection?.contrareciboNumber || '').toUpperCase().trim();
-        const folio = (o.folio || '').toUpperCase().trim();
-        const uniqueKey = cr || folio || o.oc || o.id;
-
-        if (seenUniqueKeys.has(uniqueKey)) return;
-        seenUniqueKeys.add(uniqueKey);
-
-        const official = OFFICIAL_MAP[cr] || OFFICIAL_MAP[folio] || OFFICIAL_MAP[o.oc || ''];
-        let tot = (o.collection as any)?.total || (official ? official.total : 0);
-        let k = o.totalKilograms || 0;
-
-        if (k === 0 && tot > 0) {
-          k = Math.round((tot / (pVenta * 1.16)) * 100) / 100;
-        } else if (k > 0 && tot === 0) {
-          tot = round2(k * pVenta * 1.16);
-        } else if (k === 0 && tot === 0 && official) {
-          tot = official.total;
-          k = Math.round((tot / (pVenta * 1.16)) * 100) / 100;
-        }
-
-        const sub = round2(tot / 1.16);
-        const iva = round2(tot - sub);
-        const com = round2(sub * 0.08);
-        const neto = round2(tot - com);
-
-        const dueStr = (o.collection as any)?.dueDate ? fmtDate((o.collection as any).dueDate) : (official && official.dueDate ? fmtDate(new Date(`${official.dueDate}T12:00:00`)) : '—');
-        const issueStr = o.processedAt ? fmtDate(o.processedAt) : (official && official.issueDate ? fmtDate(new Date(`${official.issueDate}T12:00:00`)) : '—');
-
-        rows.push({
-          key: `${o.id}-root`,
-          orderId: o.id,
-          oc: o.folio || o.oc || (official ? cr : 'S/OC'),
-          cliente: o.client || (cr.startsWith('TH') ? 'GRUPO TEXTIL PROVIDENCIA (TH)' : 'GRUPO TEXTIL PROVIDENCIA (GT)'),
-          folio: o.folio || (official ? cr : '—'),
-          contrarecibo: cr,
-          kilos: k,
-          precioVenta: pVenta,
-          costoAndres: pCosto,
-          subtotal: sub,
-          iva,
-          totalFactura: tot,
-          comision: com,
-          netoCaja: neto,
-          estatus: (o.creditCycle?.status as OrderStatus) || 'pending',
-          fechaEmision: issueStr,
-          fechaVencimiento: dueStr,
-          rawOrder: o,
-        });
-      } else {
-        invoices.forEach((inv) => {
-          const cr = extractCr(inv, o);
-          const folio = (inv.folio || o.folio || '').toUpperCase().trim();
-          const uniqueKey = cr || folio || o.oc || `${o.id}-${inv.id}`;
-
-          if (seenUniqueKeys.has(uniqueKey)) return;
-          seenUniqueKeys.add(uniqueKey);
-
-          const official = OFFICIAL_MAP[cr] || OFFICIAL_MAP[folio] || OFFICIAL_MAP[o.oc || ''];
-          let tot = inv.financials?.invoiceTotal || (official ? official.total : 0);
-          let k = inv.kilos || o.totalKilograms || 0;
-
-          if (k === 0 && tot > 0) {
-            k = Math.round((tot / (pVenta * 1.16)) * 100) / 100;
-          } else if (k > 0 && tot === 0) {
-            tot = round2(k * pVenta * 1.16);
-          } else if (k === 0 && tot === 0 && official) {
-            tot = official.total;
-            k = Math.round((tot / (pVenta * 1.16)) * 100) / 100;
-          }
-
-          const sub = round2(tot / 1.16);
-          const iva = round2(tot - sub);
-          const com = round2(sub * 0.08);
-          const neto = round2(tot - com);
-
-          const issueObj = toDate(inv.creditCycle?.issueDate);
-          const dueObj = toDate(inv.creditCycle?.dueDate);
-
-          const dueStr = dueObj ? fmtDate(dueObj) : (official && official.dueDate ? fmtDate(new Date(`${official.dueDate}T12:00:00`)) : '—');
-          const issueStr = issueObj ? fmtDate(issueObj) : (official && official.issueDate ? fmtDate(new Date(`${official.issueDate}T12:00:00`)) : '—');
-
-          rows.push({
-            key: `${o.id}-${inv.id}`,
-            orderId: o.id,
-            invoiceId: inv.id,
-            oc: o.folio || o.oc || (official ? cr : 'S/OC'),
-            cliente: o.client || (cr.startsWith('TH') ? 'GRUPO TEXTIL PROVIDENCIA (TH)' : 'GRUPO TEXTIL PROVIDENCIA (GT)'),
-            folio: inv.folio || o.folio || (official ? cr : '—'),
-            contrarecibo: cr,
-            kilos: k,
-            precioVenta: pVenta,
-            costoAndres: pCosto,
-            subtotal: sub,
-            iva,
-            totalFactura: tot,
-            comision: com,
-            netoCaja: neto,
-            estatus: inv.creditCycle?.status || 'pending',
-            fechaEmision: issueStr,
-            fechaVencimiento: dueStr,
-            rawOrder: o,
-          });
-        });
-      }
-    });
-
-    if (!gridFilter.trim()) return rows;
-    const q = gridFilter.toLowerCase();
-    return rows.filter(
-      (r) =>
-        r.oc.toLowerCase().includes(q) ||
-        r.cliente.toLowerCase().includes(q) ||
-        r.folio.toLowerCase().includes(q) ||
-        r.contrarecibo.toLowerCase().includes(q) ||
-        r.estatus.toLowerCase().includes(q)
-    );
-  }, [activeOrders, config, gridFilter]);
+  const gridRows = useAuditSyncGrid(activeOrders, config, gridFilter);
 
   // Guardado Atómico de Celda Editada
   const handleCellSave = async (row: typeof gridRows[0], field: string, value: string) => {
@@ -905,25 +624,25 @@ export default function AuditSync() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 20 }}>
         <div style={{ background: 'var(--paper-raised)', padding: 14, borderRadius: 12, border: '1px solid var(--line)' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>
-            {auditoriaCartera.countCrs || 12} Contrarecibos Vigentes
+            {auditoriaCartera.countCrs} Contrarecibos Vigentes
           </div>
           <div style={{ fontSize: 20, fontWeight: 900, color: '#047857', marginTop: 2 }}>
-            {money(auditoriaCartera.totalCrs || TOTAL_CARTERA_OFICIAL)}
+            {money(auditoriaCartera.totalCrs)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
-            {auditoriaCartera.countCrs || 12} documentos con CR oficial
+            {auditoriaCartera.countCrs} documentos con CR oficial
           </div>
         </div>
 
         <div style={{ background: 'var(--paper-raised)', padding: 14, borderRadius: 12, border: '1px solid var(--line)' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-faint)', textTransform: 'uppercase' }}>
-            {auditoriaCartera.countRevision || 3} Facturas en Revisión
+            {auditoriaCartera.countRevision} Facturas en Revisión
           </div>
           <div style={{ fontSize: 20, fontWeight: 900, color: '#d97706', marginTop: 2 }}>
-            {money(auditoriaCartera.totalRevision || TOTAL_FACTURAS_REVISION_OFICIAL)}
+            {money(auditoriaCartera.totalRevision)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
-            {auditoriaCartera.countRevision > 0 ? 'F-6363, F-6367 y F-6368 en trámite' : '0 facturas en revisión'}
+            {auditoriaCartera.countRevision > 0 ? 'Saldo pendiente sin contrarrecibo' : 'Sin saldos pendientes de contrarrecibo'}
           </div>
         </div>
 
@@ -932,7 +651,7 @@ export default function AuditSync() {
             Deuda Total Providencia
           </div>
           <div style={{ fontSize: 20, fontWeight: 900, color: '#2563eb', marginTop: 2 }}>
-            {money(auditoriaCartera.totalDeuda || DEUDA_TOTAL_PROVIDENCIA_OFICIAL)}
+            {money(auditoriaCartera.totalDeuda)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 2 }}>
             Neto a recibir: {money(auditoriaCartera.netoCaja)} (8% contable)
