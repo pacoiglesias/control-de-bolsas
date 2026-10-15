@@ -6,6 +6,8 @@ import { findExactPurchaseOrder, planProvidenciaPayment, purchaseOrderFromText }
 import { applyProvidenciaPayment } from '../providenciaPaymentApply';
 import { analyzeDocumentFast, applyDocumentFast } from '../autoDocumentPipeline';
 import type { PurchaseOrder } from '../types';
+import { getOrderSummary } from '../finance';
+import { buildOperationalTasks } from '../operationalTasks';
 
 const state = vi.hoisted(() => ({ text: '', docs: new Map<string, any>(), writes: [] as any[] }));
 vi.mock('../firebase', () => ({ auth: { currentUser: { uid: 'test-admin', email: 'admin@example.test' } }, db: {}, PATHS: { orders: 'orders', invoices: 'invoices' } }));
@@ -51,6 +53,17 @@ Docto. SAP Docto. Pago Factura Detalle Fecha Pago Importe Moneda
 2/314 TR_5189 6193 GT-874 13/10/2026 49,880.00 MXN
 2/328 TR_5189 6224 GT-904 13/10/2026 49,032.04 MXN`;
 const payment = () => parseProvidenciaPaymentPdf(paymentText)!;
+it('una OC nueva indica la entrega faltante sin inventar factura, CR ni kilos entregados', () => {
+  const order = { ...purchaseOrderFromText(oc), id: 'new-oc' } as PurchaseOrder;
+  const summary = getOrderSummary(order);
+  expect(summary.invoices).toEqual([]);
+  expect(summary.kilosDelivered).toBe(0);
+  expect(summary.kilosInvoiced).toBe(0);
+  expect(summary.invoiceTotal).toBe(0);
+  const tasks = buildOperationalTasks([order]);
+  expect(tasks).toHaveLength(1);
+  expect(tasks[0]).toMatchObject({ category: 'delivery', kilos: 9500 });
+});
 const orders = (): PurchaseOrder[] => ['6193', '6224'].map((folio, index) => ({ id: 'o'+index, folio: index ? 'GT-904' : 'GT-874', invoices: [{ id: 'i'+index, orderId: 'o'+index, folio, kilos: 0, creditCycle: { status: 'pending' }, financials: { invoiceTotal: index ? 49032.04 : 49880 } as any, collection: { paidAmount: 0, contrareciboNumber: index ? 'GT-904' : 'GT-874' } }] }));
 beforeEach(() => { state.docs.clear(); state.writes=[]; state.text=''; for (const order of orders()) state.docs.set('orders/'+order.id, order); });
 

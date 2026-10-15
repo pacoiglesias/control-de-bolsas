@@ -18,7 +18,7 @@ import type { PurchaseOrder } from '../../lib/types';
 
 interface BatchItemState {
   file: File;
-  status: 'pending' | 'analyzing' | 'applying' | 'success' | 'duplicate' | 'needs_clarification' | 'error';
+  status: 'pending' | 'analyzing' | 'applying' | 'success' | 'duplicate' | 'skipped' | 'needs_clarification' | 'error';
   analysis?: PipelineAnalysis;
   result?: PipelineApplyResult;
   errorMessage?: string;
@@ -38,7 +38,7 @@ export function GlobalDropzoneHUD() {
   const [batchQueue, setBatchQueue] = useState<BatchItemState[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [completedSummary, setCompletedSummary] = useState<{ total: number; success: number; dupes: number } | null>(null);
+  const [completedSummary, setCompletedSummary] = useState<{ total: number; success: number; dupes: number; skipped: number } | null>(null);
 
   // Modal inspector manual para casos excepcionales
   const [manualInspectFile, setManualInspectFile] = useState<File | null>(null);
@@ -153,7 +153,8 @@ export function GlobalDropzoneHUD() {
         // Fin de la cola: calcular resumen
         const successCount = queue.filter((i) => i.status === 'success').length;
         const dupeCount = queue.filter((i) => i.status === 'duplicate').length;
-        setCompletedSummary({ total: queue.length, success: successCount, dupes: dupeCount });
+        const skipped = queue.filter(i => i.status === 'skipped' || i.status === 'error').length;
+        setCompletedSummary({ total: queue.length, success: successCount, dupes: dupeCount, skipped });
         setIsProcessing(false);
 
         if (successCount > 0) {
@@ -419,10 +420,10 @@ export function GlobalDropzoneHUD() {
       if (copy[currentIndex]) {
         copy[currentIndex] = {
           ...copy[currentIndex],
-          status: 'duplicate',
+          status: 'skipped',
           result: {
-            success: true,
-            isDuplicate: true,
+            success: false,
+            isDuplicate: false,
             message: reasonText,
             docType: item.analysis?.docType || 'desconocido',
             folio: item.analysis?.folio || '',
@@ -729,6 +730,11 @@ export function GlobalDropzoneHUD() {
                     {completedSummary.dupes} documento(s) ya existían en el sistema y fueron conservados sin duplicar.
                   </div>
                 )}
+                {completedSummary.skipped > 0 && (
+                  <div style={{ fontSize: 12, color: '#fbbf24', marginTop: 4 }}>
+                    {completedSummary.skipped} documento(s) sin aplicar. Completa los datos faltantes y vuelve a cargarlos.
+                  </div>
+                )}
                 <div style={{ fontSize: 11, color: '#64748b', marginTop: 8 }}>
                   Reflejado automáticamente en Dashboard, Métricas y Cobranza.
                 </div>
@@ -782,7 +788,7 @@ export function GlobalDropzoneHUD() {
                           `Guardando en Firestore y respaldando en Storage... (${currentItem.analysis?.folio ? `F-#${currentItem.analysis.folio}` : ''})`}
                         {currentItem.status === 'success' && currentItem.result?.message}
                         {currentItem.status === 'duplicate' && currentItem.result?.message}
-                        {currentItem.status === 'needs_clarification' && 'Se requiere especificar la Orden de Compra'}
+                        {currentItem.status === 'needs_clarification' && (currentItem.analysis?.paymentDetail ? 'Revisar facturas antes de registrar el pago' : 'Se requiere especificar la Orden de Compra')}
                         {currentItem.status === 'error' && currentItem.errorMessage}
                       </div>
                     </div>
@@ -913,6 +919,8 @@ export function GlobalDropzoneHUD() {
                           ? `Pesaje sospechoso en báscula (${currentItem.analysis.kilos.toLocaleString('es-MX')} kg)`
                           : currentItem.analysis?.multipleInvoicesCandidate
                           ? 'Múltiples facturas con saldo pendiente'
+                          : currentItem.analysis?.paymentDetail
+                          ? 'Faltan facturas por capturar o conciliar'
                           : `Asignación requerida para ${currentItem.analysis?.docType || 'documento'}`}
                       </div>
                     </div>

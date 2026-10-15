@@ -394,10 +394,13 @@ export function getOrderSummary(o: PurchaseOrder) {
   // exista ninguna factura real, exactamente el caso de un expediente
   // recien capturado con "Pendiente de Facturar".
   const tieneEntregasExplicitas = (o.deliveries?.length || 0) > 0;
+  // An explicit empty invoice list is a captured OC awaiting documents.
+  // Its purchase-order folio alone is never evidence of an issued invoice.
+  const legacyInvoiceEvidence = Boolean((!Array.isArray(o.invoices) && o.folio) || (o.financials?.saleTotal || 0) > 0);
   const isReconstructedInvoice = Boolean(
-    (o.invoices || []).length === 0 && !tieneEntregasExplicitas && (o.folio || (o.financials && o.financials.saleTotal && o.financials.saleTotal > 0))
+    (o.invoices || []).length === 0 && !tieneEntregasExplicitas && legacyInvoiceEvidence
   );
-  if (invoices.length === 0 && !tieneEntregasExplicitas && (o.folio || (o.financials && o.financials.saleTotal && o.financials.saleTotal > 0))) {
+  if (isReconstructedInvoice) {
     invoices.push({
       id: o.id + '-inv0',
       orderId: o.id,

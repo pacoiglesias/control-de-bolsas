@@ -7,7 +7,7 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
- version: 'v9.13.0: Órdenes de compra y pagos con varias facturas', date: '15 de Octubre de 2026', time: '',
- summary: 'La importación distingue OC de remisiones, conserva partidas y precios del documento y concilia transferencias por todas sus facturas.',
- highlights: ['Prioridad de la OC frente a las reglas genéricas de remisión y báscula.', 'Registro de OC con identidad exacta, kilos, partidas, departamento y precio real; sin facturas ni entregas artificiales.', 'Desglose completo de pagos Providencia: factura, contrarrecibo, fecha e importe por fila.', 'Aplicación atómica de las facturas de una transferencia, con comprobantes idempotentes y espejo de cobranza.', 'Acceso a expedientes históricos reales para conciliar documentos sin depender de la lista comercial activa.'],
+ version: 'v9.13.1: Captura pendiente y avance real', date: '15 de Octubre de 2026', time: '',
+ summary: 'Los documentos señalan los datos faltantes. Una OC nueva muestra cero entregado y facturado hasta capturar los documentos reales.',
+ highlights: ['Aviso de facturas faltantes por folio y contrarrecibo al importar pagos.', 'Cerrar un documento sin aplicar se informa como pendiente, nunca como duplicado.', 'La OC no genera una factura por tener folio. Los próximos pasos dependen de entregas, facturas, contrarrecibos y cobros capturados.'],
 };
