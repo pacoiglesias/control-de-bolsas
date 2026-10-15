@@ -38,7 +38,7 @@ export function GlobalDropzoneHUD() {
   const [batchQueue, setBatchQueue] = useState<BatchItemState[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [completedSummary, setCompletedSummary] = useState<{ total: number; success: number; dupes: number; skipped: number } | null>(null);
+  const [completedSummary, setCompletedSummary] = useState<{ total: number; success: number; dupes: number; skipped: number; archived: number } | null>(null);
 
   // Modal inspector manual para casos excepcionales
   const [manualInspectFile, setManualInspectFile] = useState<File | null>(null);
@@ -151,10 +151,11 @@ export function GlobalDropzoneHUD() {
     async (idx: number, queue: BatchItemState[]) => {
       if (idx < 0 || idx >= queue.length) {
         // Fin de la cola: calcular resumen
-        const successCount = queue.filter((i) => i.status === 'success').length;
+        const successCount = queue.filter((i) => i.status === 'success' && !i.analysis?.evidence).length;
+        const archived = queue.filter(i => i.status === 'success' && i.analysis?.evidence).length;
         const dupeCount = queue.filter((i) => i.status === 'duplicate').length;
         const skipped = queue.filter(i => i.status === 'skipped' || i.status === 'error').length;
-        setCompletedSummary({ total: queue.length, success: successCount, dupes: dupeCount, skipped });
+        setCompletedSummary({ total: queue.length, success: successCount, dupes: dupeCount, skipped, archived });
         setIsProcessing(false);
 
         if (successCount > 0) {
@@ -164,6 +165,8 @@ export function GlobalDropzoneHUD() {
             `🎉 ${successCount} documento(s) procesados, asignados y respaldados en la nube exitosamente.`,
             'ok'
           );
+        } else if (archived > 0) {
+          toast(`${archived} documento(s) del portal registrados. Revisa los datos faltantes en Documentos.`, 'info');
         } else if (dupeCount > 0) {
           toast(`ℹ️ ${dupeCount} documento(s) ya estaban registrados previamente en el ERP.`, 'info');
         }
@@ -730,6 +733,9 @@ export function GlobalDropzoneHUD() {
                     {completedSummary.dupes} documento(s) ya existían en el sistema y fueron conservados sin duplicar.
                   </div>
                 )}
+                {completedSummary.archived > 0 && <div style={{ fontSize: 12, color: '#93c5fd', marginTop: 4 }}>
+                  {completedSummary.archived} documento(s) del portal guardados con sus filas y pendientes. Consulta Documentos.
+                </div>}
                 {completedSummary.skipped > 0 && (
                   <div style={{ fontSize: 12, color: '#fbbf24', marginTop: 4 }}>
                     {completedSummary.skipped} documento(s) sin aplicar. Completa los datos faltantes y vuelve a cargarlos.

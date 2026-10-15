@@ -1,5 +1,6 @@
 import { findExactPurchaseOrder, purchaseOrderFromText, planProvidenciaPayment } from './providenciaImport';
 import { applyProvidenciaPayment } from './providenciaPaymentApply';
+import { parseProvidenciaEvidence, evidenceRequirements, type ProvidenciaEvidence } from './providenciaEvidence';
 import { parseOrdenDeCompra } from './ocParser';
 import type { ParsedProvidenciaPaymentData } from './providenciaPortalParser';
 /**
@@ -105,6 +106,7 @@ export type PipelineDocType =
   | 'desconocido';
 
 export interface PipelineAnalysis {
+  evidence?: ProvidenciaEvidence;
   file: File;
   docType: PipelineDocType;
   confidence: 'alta' | 'media' | 'baja';
@@ -590,6 +592,12 @@ export async function analyzeDocumentFast(
     else if (fileName.endsWith('.pdf') || file.type === 'application/pdf') {
       const text = extractedText ?? await extractTextFromPdf(file);
       rawText = text;
+      const evidence = parseProvidenciaEvidence(text);
+      if (evidence) return { file, docType: evidence.kind==='payment_rep' ? 'comprobante_pago' : 'contrarecibo',
+        confidence: 'alta', folio: evidence.folio || evidence.title, uuid: evidence.uuid,
+        kilos: 0, subtotal: 0, total: evidence.total, docDate: evidence.paymentDate || evidence.capturedDate || docDate,
+        detectedOcNumber: '', matchedOrder: null, autoAssignedLabel: evidence.title,
+        isDuplicate: false, needsClarification: false, fileContentSha256: contentHash, rawText: text, evidence };
 
       // 0. Detalle de Pagos Providencia
       const provPayment = parseProvidenciaPaymentPdf(text);
@@ -928,6 +936,16 @@ export async function applyDocumentFast(
       }
     }
 
+    if (analysis.evidence) {
+      const evidence = analysis.evidence;
+      const missing = evidenceRequirements(evidence, allOrdersContext || []);
+      await uploadDocument({ file: analysis.file, docKind: evidence.kind==='payment_rep' ? 'pago_providencia' : 'contrarecibo',
+        folio: evidence.folio || evidence.title, kilos: 0, total: evidence.total, docDate: analysis.docDate,
+        documentId: analysis.fileContentSha256 ? 'evidence-'+analysis.fileContentSha256 : undefined, evidence,
+        notes: `${evidence.title}: ${evidence.receipts.length || evidence.invoices.length || evidence.allocations.length} filas registradas. ${missing.join(' ')}` });
+      return { success: true, docType: analysis.docType, folio: analysis.folio, kilos: 0, total: analysis.total,
+        message: `${evidence.title} registrado con ${evidence.receipts.length || evidence.invoices.length || evidence.allocations.length} filas. ${missing.length} pendientes de captura o conciliación en Documentos. No se duplicaron cobros ni se crearon facturas sin soporte.` };
+    }
     if (analysis.paymentDetail) {
       try {
         const result = await applyProvidenciaPayment(analysis.paymentDetail, allOrdersContext || [], analysis.fileContentSha256);

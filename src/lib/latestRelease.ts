@@ -7,7 +7,7 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
- version: 'v9.13.1: Captura pendiente y avance real', date: '15 de Octubre de 2026', time: '',
- summary: 'Los documentos señalan los datos faltantes. Una OC nueva muestra cero entregado y facturado hasta capturar los documentos reales.',
- highlights: ['Aviso de facturas faltantes por folio y contrarrecibo al importar pagos.', 'Cerrar un documento sin aplicar se informa como pendiente, nunca como duplicado.', 'La OC no genera una factura por tener folio. Los próximos pasos dependen de entregas, facturas, contrarrecibos y cobros capturados.'],
+ version: 'v9.14.0: Documentos del portal y captura guiada', date: '15 de Octubre de 2026', time: '',
+ summary: 'Lee listados del portal y complementos de pago, conserva sus filas y señala lo que falta capturar o conciliar.',
+ highlights: ['Listas de contrarrecibos generados y pagados con fechas, importes y saldos por fila.', 'Panel del proveedor con OC, folio, fecha e importe de cada factura, incluidas fechas partidas entre líneas.', 'Complemento de pago PDF con UUID y saldos de cada documento relacionado; distingue el monto pagado del total fiscal cero.', 'Inicio y Documentos muestran pendientes que se recalculan al capturar datos.', 'Advierte páginas faltantes, diferencias de OC o importe y facturas ausentes sin generar ventas ni cobros duplicados.'],
 };

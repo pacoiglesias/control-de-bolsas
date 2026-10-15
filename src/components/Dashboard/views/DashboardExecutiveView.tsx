@@ -1,5 +1,6 @@
 import type { NavigateFunction } from 'react-router-dom';
 import { PriorityActionQueue } from '../PriorityActionQueue';
+import { ProvidenciaCaptureReview } from '../../Upload/ProvidenciaCaptureReview';
 import { CashFlowSimulatorWidget } from '../CashFlowSimulatorWidget';
 import { ExecutiveFinancialCard } from '../ExecutiveFinancialCard';
 import { ActiveOrdersMobileCards } from '../ActiveOrdersMobileCards';
@@ -45,6 +46,7 @@ export function DashboardExecutiveView({
         <button type="button" onClick={onOpenQuickCollection}><span>03</span><div><strong>Registrar cobro</strong><small>Revisa pagos y saldos</small></div></button>
       </nav>}
       {/* 0. Centro Operativo Unificado: Qué Requiere Atención Hoy */}
+      <ProvidenciaCaptureReview compact />
       <PriorityActionQueue
         orders={seguimientoOrders}
         config={config}

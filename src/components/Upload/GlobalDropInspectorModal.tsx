@@ -1,7 +1,8 @@
 import { ProvidenciaPaymentRows } from './ProvidenciaPaymentRows';
+import { parseProvidenciaEvidence } from '../../lib/providenciaEvidence';
 import type { ParsedProvidenciaPaymentData } from '../../lib/providenciaPortalParser';
 import { analyzeDocumentFast, applyDocumentFast } from '../../lib/autoDocumentPipeline';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Modal } from '../ui';
 import { parseXmlInvoice } from '../../lib/xmlParser';
 import { extractTextFromPdf, extractTextFromImage, parseOcrData } from '../../lib/ocr';
@@ -39,6 +40,8 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
   const orderState = useOrdersContext();
   const orders = orderState.documentOrders || orderState.orders;
   const toast = useToast();
+  const uploadCallbacks = useRef({ toast, onClose });
+  uploadCallbacks.current = { toast, onClose };
 
   const [paymentDetail, setPaymentDetail] = useState<ParsedProvidenciaPaymentData | null>(null);
   const [analyzing, setAnalyzing] = useState(true);
@@ -111,6 +114,12 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
         else if (fileName.endsWith('.pdf') || file.type === 'application/pdf') {
           const text = await extractTextFromPdf(file);
           if (!active) return;
+          if (parseProvidenciaEvidence(text)) {
+            const analysis = await analyzeDocumentFast(file, orders, text);
+            const result = await applyDocumentFast(analysis, null, orders);
+            if (active) { uploadCallbacks.current.toast(result.message, result.success ? 'ok' : 'bad'); if(result.success) uploadCallbacks.current.onClose(); }
+            return;
+          }
 
           // 0. Detectar si es un Detalle de Pagos oficial de Providencia (TR_xxxx, Factura, Contrarecibo)
           const provPayment = parseProvidenciaPaymentPdf(text);

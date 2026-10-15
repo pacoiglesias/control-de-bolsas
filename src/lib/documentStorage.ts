@@ -30,8 +30,10 @@ import {
   orderBy,
   where,
   Timestamp,
+  getDoc,
 } from 'firebase/firestore';
-import { safeUpdateDoc, safeAddDoc } from './safeFirestore';
+import { safeUpdateDoc, safeAddDoc, safeSetDoc } from './safeFirestore';
+import type { ProvidenciaEvidence } from './providenciaEvidence';
 import { storage, db } from './firebase';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -46,6 +48,7 @@ export type StoredDocKind =
   | 'desconocido';
 
 export interface StoredDocument {
+  evidence?: ProvidenciaEvidence;
   /** ID del documento Firestore */
   id: string;
   /** Nombre original del archivo (ej. "OC-12026439806.pdf") */
@@ -86,6 +89,8 @@ const DOCS_COLLECTION = 'storedDocuments';
 // ─── Subir documento ──────────────────────────────────────────────────────────
 
 export interface UploadDocumentOptions {
+  evidence?: ProvidenciaEvidence;
+  documentId?: string;
   file: File;
   docKind: StoredDocKind;
   folio: string;
@@ -103,6 +108,10 @@ export interface UploadDocumentOptions {
  * Retorna el StoredDocument creado (con su id de Firestore).
  */
 export async function uploadDocument(opts: UploadDocumentOptions): Promise<StoredDocument> {
+  if (opts.documentId) {
+    const existing = await getDoc(doc(db, DOCS_COLLECTION, opts.documentId));
+    if (existing.exists()) return { ...existing.data(), id: existing.id } as StoredDocument;
+  }
   const {
     file, docKind, folio, ocNumber, orderId, orderFolio,
     kilos, total, docDate, notes,
@@ -112,7 +121,7 @@ export async function uploadDocument(opts: UploadDocumentOptions): Promise<Store
   const now = new Date();
   const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const storagePath = `documentos/${docKind}/${monthStr}/${Date.now()}_${safeFileName}`;
+  const storagePath = `documentos/${docKind}/${monthStr}/${opts.documentId || Date.now()}_${safeFileName}`;
 
   // 1. Subir binario a Storage
   const storageRef = ref(storage, storagePath);
@@ -146,11 +155,17 @@ export async function uploadDocument(opts: UploadDocumentOptions): Promise<Store
     uploadedAt: Timestamp.now(),
     sizeBytes: file.size,
     mimeType: file.type || 'application/pdf',
+    ...(opts.evidence ? { evidence: opts.evidence } : {}),
   };
 
-  const docRef = await safeAddDoc(collection(db, DOCS_COLLECTION), meta);
+  const docRef = opts.documentId ? doc(db, DOCS_COLLECTION, opts.documentId) : null;
+  if (docRef) {
+    await safeSetDoc(docRef, meta);
+    return { id: docRef.id, ...meta };
+  }
+  const addedRef = await safeAddDoc(collection(db, DOCS_COLLECTION), meta);
 
-  return { id: docRef.id, ...meta };
+  return { id: addedRef.id, ...meta };
 }
 
 // ─── Listar documentos ────────────────────────────────────────────────────────

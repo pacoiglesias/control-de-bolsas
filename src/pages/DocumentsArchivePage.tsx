@@ -1,4 +1,5 @@
 import { DocumentsArchive } from '../components/Upload/DocumentsArchive';
+import { ProvidenciaCaptureReview } from '../components/Upload/ProvidenciaCaptureReview';
 
 export default function DocumentsArchivePage() {
   return (
@@ -11,6 +12,7 @@ export default function DocumentsArchivePage() {
           </p>
         </div>
       </div>
+      <ProvidenciaCaptureReview />
       <DocumentsArchive />
     </div>
   );

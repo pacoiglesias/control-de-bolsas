@@ -8,6 +8,7 @@ import { analyzeDocumentFast, applyDocumentFast } from '../autoDocumentPipeline'
 import type { PurchaseOrder } from '../types';
 import { getOrderSummary } from '../finance';
 import { buildOperationalTasks } from '../operationalTasks';
+import { uploadDocument } from '../documentStorage';
 
 const state = vi.hoisted(() => ({ text: '', docs: new Map<string, any>(), writes: [] as any[] }));
 vi.mock('../firebase', () => ({ auth: { currentUser: { uid: 'test-admin', email: 'admin@example.test' } }, db: {}, PATHS: { orders: 'orders', invoices: 'invoices' } }));
@@ -66,6 +67,16 @@ it('una OC nueva indica la entrega faltante sin inventar factura, CR ni kilos en
 });
 const orders = (): PurchaseOrder[] => ['6193', '6224'].map((folio, index) => ({ id: 'o'+index, folio: index ? 'GT-904' : 'GT-874', invoices: [{ id: 'i'+index, orderId: 'o'+index, folio, kilos: 0, creditCycle: { status: 'pending' }, financials: { invoiceTotal: index ? 49032.04 : 49880 } as any, collection: { paidAmount: 0, contrareciboNumber: index ? 'GT-904' : 'GT-874' } }] }));
 beforeEach(() => { state.docs.clear(); state.writes=[]; state.text=''; for (const order of orders()) state.docs.set('orders/'+order.id, order); });
+
+it('registra el listado como evidencia, sin facturas, entregas ni cobros por sus totales', async () => {
+  state.text='11 resultados No Contrarecibo Total Pagado Pendiente Moneda TC Estatus 1 GT-100 12/10/2026 11/11/2026 1160.00 0.00 1160.00 PMX 1 GENERADO';
+  const file={name:'contrarecibos.pdf',type:'application/pdf'} as File;
+  const analysis=await analyzeDocumentFast(file,orders());
+  expect(analysis.evidence?.receipts).toHaveLength(1);expect(analysis.needsClarification).toBe(false);
+  const result=await applyDocumentFast(analysis,null,orders());expect(result.success).toBe(true);
+  expect(state.writes).toEqual([]);
+  expect(vi.mocked(uploadDocument)).toHaveBeenLastCalledWith(expect.objectContaining({evidence:expect.objectContaining({kind:'receipt_list'}),kilos:0,total:1160}));
+});
 
 it('clasifica la OC antes de remisiones y conserva siete partidas, TH, 9500 kg y precio 44', () => {
   const result = parseOcrData(oc); expect(result.docKind).toBe('oc_providencia'); expect(result.ocNumber).toBe('120267114400');

@@ -1,4 +1,5 @@
 import { applyProvidenciaPayment } from '../../lib/providenciaPaymentApply';
+import { parseProvidenciaEvidence } from '../../lib/providenciaEvidence';
 import { analyzeDocumentFast, applyDocumentFast } from '../../lib/autoDocumentPipeline';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
@@ -1079,7 +1080,7 @@ export function UniversalDocumentUploadModal({ onClose }: UniversalDocumentUploa
           const text = await extractTextFromPdf(file);
           
           const canonicalKind = parseOcrData(text).docKind;
-          if (canonicalKind === 'oc_providencia' || canonicalKind === 'pago_providencia') {
+          if (parseProvidenciaEvidence(text) || canonicalKind === 'oc_providencia' || canonicalKind === 'pago_providencia') {
             const analysis = await analyzeDocumentFast(file, orders, text);
             const result = await applyDocumentFast(analysis, null, orders);
             results.push({ id: crypto.randomUUID(), fileName: file.name, folio: result.folio, oc: result.orderFolio || analysis.detectedOcNumber, kilos: result.kilos, total: result.total, status: result.success ? (result.isDuplicate ? 'warning' : 'success') : 'error', message: result.message });
