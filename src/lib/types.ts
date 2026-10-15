@@ -191,6 +191,10 @@ export interface Delivery {
   invoiced?: boolean;
   /** A qué factura quedó ligada, una vez facturada. */
   invoiceId?: string;
+  /** Kilos amparados, incluso cuando la entrega se factura parcialmente. */
+  invoicedKilos?: number;
+  /** Desglose que permite editar o eliminar una factura sin liberar las demás. */
+  invoiceAllocations?: { invoiceId: string; kilos: number }[];
   notes?: string;
   docType?: 'remision' | 'factura';
   docFolio?: string;

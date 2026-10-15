@@ -7,17 +7,17 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.10.33: Blindaje de Red y Errores Offline en Maquila, Identidad Determinista en Bitácora y Protección de Margen Financiero Real',
-  date: '11 de Octubre de 2026',
-  time: '10:15 AM',
-  summary: 'v9.10.33: Endurecimiento de la resiliencia offline en el Portal Maquilador con clasificación granular de errores (shouldQueueOfflineDeliveryError), identificadores deterministas en bitácoras de Cloud Functions, vinculación estricta de contrarrecibos por folio oficial amparado, aislamiento de costos estimados en el cálculo de margen real y suite ampliada a 355 pruebas aprobadas.',
+  version: 'v9.11.0: Operación diaria más clara y facturación segura',
+  date: '14 de Octubre de 2026',
+  time: '',
+  summary: 'Inicio con próximos pasos por prioridad, navegación más simple y controles para conservar kilos, facturas y pagos al editar documentos.',
   highlights: [
-    '📶 Blindaje de Encolado Offline en Portal Maquilador: Clasificación precisa de errores de red vs validación; solo fallas de conexión o códigos transitorios se encolan en IndexedDB, informando de inmediato errores de datos al usuario.',
-    '📋 Identidad Determinista y Reparación de Bitácoras: IDs deterministas en maquilaDeliveries y system_logs para que reintentos de entregas no generen registros duplicados y reparen auditorías automáticamente.',
-    '🔄 Normalización de Contratos de Órdenes: Compatibilidad transparente entre id y orderId con normalizeActiveMaquilaOrders en pantallas de PIN y entrega.',
-    '📑 Vinculación Estricta de Contrarrecibos: Detección rigurosa por folio oficial amparado, prevención de sobreescritura sobre órdenes pagadas existentes y no afectación de expedientes con CR previo.',
-    '📊 Protección del Margen Financiero Real: Inclusión de banderas needsReview e isEstimatedCost que aíslan importaciones históricas del margen live, mostrando advertencias visibles ("Costo pendiente" / "Por revisar").',
-    '💵 Idempotencia en Movimientos de Caja Chica: Condición estricta de facturas recolectadas efectivas para no emitir movimientos fantasma en caja.',
-    '🧪 Suite de Pruebas Ampliada: 355 pruebas aprobadas en 52 suites con 0 fallos.',
+    'Mi día: tres acciones principales y una lista filtrable con la siguiente tarea de cada factura.',
+    'Menos controles repetidos y simulaciones financieras disponibles bajo demanda.',
+    'Facturación rápida con transacción: conserva cambios concurrentes y actualiza el espejo de cobranza.',
+    'Facturas parciales con desglose de kilos por documento y reversión precisa.',
+    'Eliminar la última factura conserva la orden; los documentos con pagos requieren reversión previa.',
+    'Entregas validadas con el saldo actual y coincidencia entre partidas y kilos totales.',
+    'XML con conceptos reales y revisión explícita para unidades o impuestos incompatibles.',
   ],
 };

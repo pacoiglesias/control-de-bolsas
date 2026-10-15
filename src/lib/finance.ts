@@ -1,4 +1,4 @@
-import type { PurchaseOrder, Invoice, Delivery, OrderStatus, FinancialConfig, AndresRequirement, NextActionInfo } from './types';
+import type { PurchaseOrder, PurchaseOrderItem, Invoice, Delivery, OrderStatus, FinancialConfig, AndresRequirement, NextActionInfo } from './types';
 import Decimal from 'decimal.js-light';
 
 /**
@@ -826,7 +826,9 @@ export function validateOrderWeightGuardrail(
   const alreadyDeliveredKg = round2(
     deliveries
       .filter((d: any) => !currentDeliveryId || d.id !== currentDeliveryId)
-      .reduce((s: number, d: any) => s + (Number(d.kilos) || 0), 0)
+      .reduce((s: number, d: Delivery) => s + (d.items?.length
+        ? d.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
+        : Number(d.kilos) || 0), 0)
   );
 
   const maxAllowedNewKg = round2(Math.max(0, totalOrderedKg - alreadyDeliveredKg));
@@ -872,7 +874,8 @@ export function validateInvoiceWeightGuardrail(
   currentInvoiceId?: string
 ): InvoiceGuardrailResult {
   const s = getOrderSummary(order);
-  const totalOrderedKg = round2(Number(order?.totalKilograms) || s.kilosDelivered || 0);
+  const itemsKilos = (order?.items ?? []).reduce((sum: number, item: PurchaseOrderItem) => sum + (Number(item.quantity) || 0), 0);
+  const totalOrderedKg = round2(itemsKilos > 0 ? itemsKilos : Number(order?.totalKilograms) || s.kilosDelivered || 0);
   const totalDeliveredKg = round2(s.kilosDelivered || 0);
 
   const invoices = Array.isArray(order?.invoices) ? order.invoices : [];

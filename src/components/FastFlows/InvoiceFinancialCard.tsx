@@ -23,7 +23,7 @@ interface InvoiceFinancialCardProps {
   onDownloadXmlDraft?: () => void;
   onWhatsAppContador?: () => void;
   onXmlSelected?: (file: File) => void;
-  onOneClickInvoice?: () => void;
+
   selectedRowsCount: number;
   guardrail?: InvoiceGuardrailResult | null;
 }
@@ -48,7 +48,7 @@ export function InvoiceFinancialCard({
   onDownloadXmlDraft,
   onWhatsAppContador,
   onXmlSelected,
-  onOneClickInvoice,
+
   selectedRowsCount,
   guardrail,
 }: InvoiceFinancialCardProps) {
@@ -265,36 +265,7 @@ export function InvoiceFinancialCard({
           >
             Cancelar
           </button>
-          {onOneClickInvoice && !folio.trim() && (
-            <button
-              type="button"
-              className="btn"
-              onClick={onOneClickInvoice}
-              disabled={
-                saving ||
-                kilosToInvoice <= 0 ||
-                Boolean(guardrail?.isOverDelivered || guardrail?.isOverOrdered)
-              }
-              style={{
-                padding: '10px 18px',
-                fontWeight: 800,
-                fontSize: 13,
-                borderRadius: 10,
-                background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
-                color: '#fff',
-                border: 'none',
-                boxShadow: '0 4px 14px rgba(79, 70, 229, 0.35)',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-              title="Genera un folio sugerido y factura en 1 clic los kilos amparados"
-            >
-              <span>⚡</span>
-              <span>Facturar en 1 Clic</span>
-            </button>
-          )}
+
           <button
             type="button"
             className="btn btn-primary"
@@ -320,10 +291,10 @@ export function InvoiceFinancialCard({
             }}
           >
             {saving
-              ? '⏳ Emitiendo...'
+              ? 'Guardando factura...'
               : guardrail?.isOverDelivered || guardrail?.isOverOrdered
               ? '⛔ Sobrefacturación Detectada'
-              : `🧾 Emitir Factura (${kilosToInvoice.toLocaleString('es-MX')} kg)`}
+              : `Registrar factura (${kilosToInvoice.toLocaleString('es-MX')} kg)`}
           </button>
         </div>
       </div>

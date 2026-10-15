@@ -1,3 +1,4 @@
+import { getDeliveryBilling } from '../../lib/deliveries';
 import React from 'react';
 import { useOrderModal } from './OrderModalContext';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
@@ -49,7 +50,15 @@ export default function TabEntregas() {
   const [showFotoModal, setShowFotoModal] = React.useState(false);
 
   const { form, setForm, readOnly, kilosEntregados, kilosPedidos, kilosFaltantes, setTab } = ctx;
-  const { addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, facturarEntrega } = useOrderDeliveries(setForm, setTab);
+  const { addDelivery, updateDelivery, updateDeliveryItemQty, removeDelivery, facturarEntrega } = useOrderDeliveries(setForm, (index) => {
+    const delivery = form.deliveries[index];
+    const saved = ctx.order.deliveries?.find(candidate => candidate.id === delivery.id);
+    if (!saved || JSON.stringify(saved) !== JSON.stringify(delivery)) {
+      toast('Guarda primero los cambios de la entrega. Después podrás registrar su factura.', 'info');
+      return;
+    }
+    window.dispatchEvent(new CustomEvent('open-fast-invoice', { detail: { orderId: ctx.order.id } }));
+  }, form.deliveries);
 
   const handlePrintSingleDelivery = (d: any) => {
     triggerHaptic();
@@ -464,7 +473,7 @@ export default function TabEntregas() {
                               const date = fromInputDate(e.target.value);
                               updateDelivery(i, 'date', date ? Timestamp.fromDate(date) : null);
                             }}
-                            disabled={readOnly || d.invoiced}
+                            disabled={readOnly || getDeliveryBilling(d).invoicedKilos > 0}
                           />
 
                           {/* Selector Tipo de Documento: Remisión vs Factura */}
@@ -510,7 +519,7 @@ export default function TabEntregas() {
                             placeholder={d.docType === 'factura' ? 'Folio Factura' : 'Folio Remisión / Báscula'}
                             defaultValue={d.docFolio || ''}
                             onBlur={e => updateDelivery(i, 'docFolio', e.target.value)}
-                            disabled={readOnly || d.invoiced}
+                            disabled={readOnly || getDeliveryBilling(d).invoicedKilos > 0}
                             style={{ width: 140, fontSize: 12 }}
                             title={`Folio o número de documento de entrega de ${provName}`}
                           />
@@ -585,7 +594,7 @@ export default function TabEntregas() {
                                       }
                                       updateDeliveryItemQty(i, it.id, val);
                                     }}
-                                    disabled={readOnly || d.invoiced}
+                                    disabled={readOnly || getDeliveryBilling(d).invoicedKilos > 0}
                                   />
                                 </td>
                               </tr>
@@ -598,7 +607,7 @@ export default function TabEntregas() {
                         placeholder="Notas de esta entrega (opcional)"
                         defaultValue={d.notes || ''}
                         onBlur={e => updateDelivery(i, 'notes', e.target.value)}
-                        disabled={readOnly || d.invoiced}
+                        disabled={readOnly || getDeliveryBilling(d).invoicedKilos > 0}
                       />
                     </div>
                   );

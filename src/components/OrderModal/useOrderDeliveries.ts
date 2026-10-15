@@ -1,12 +1,14 @@
 import { useCallback } from 'react';
 import { Timestamp } from 'firebase/firestore';
-import type { Delivery, Invoice } from '../../lib/types';
+import type { Delivery } from '../../lib/types';
 import { confirmDialog } from '../../lib/confirmDialog';
 import { round2 } from '../../lib/finance';
+import { getDeliveryBilling } from '../../lib/deliveries';
 
 export function useOrderDeliveries(
   setForm: React.Dispatch<React.SetStateAction<any>>,
-  setTab?: (t: 'resumen' | 'productos' | 'entregas' | 'facturas') => void
+  onInvoice?: (index: number) => void,
+  deliveries: Delivery[] = [],
 ) {
 
   const addDelivery = useCallback(() => {
@@ -58,19 +60,17 @@ export function useOrderDeliveries(
   }, [setForm]);
 
   const removeDelivery = useCallback(async (index: number) => {
-    let targetDeliv: any = null;
-    setForm((f: any) => {
-      targetDeliv = f.deliveries?.[index];
-      return f;
-    });
+    const targetDeliv = deliveries[index];
+    if (!targetDeliv) return;
 
-    const isInvoiced = targetDeliv?.invoiced;
+    const isInvoiced = targetDeliv && getDeliveryBilling(targetDeliv).invoicedKilos > 0;
+    if (isInvoiced) {
+      await confirmDialog({ message: "Esta entrega tiene kilos facturados. Desvincula primero la factura desde Facturas para conservar la trazabilidad." });
+      return;
+    }
     const kg = targetDeliv?.kilos || targetDeliv?.items?.reduce((a: number, it: any) => a + (Number(it.quantity) || 0), 0) || 0;
 
-    let msg = `¿Eliminar la entrega #${index + 1} (${kg} kg)?`;
-    if (isInvoiced) {
-      msg = `⚠️ ¡ADVERTENCIA!\n\nLa entrega #${index + 1} (${kg} kg) ya fue marcada como FACTURADA.\n\nSi la eliminas, podría haber discrepancia entre los kilos entregados en báscula y los kilos facturados.\n\n¿Estás seguro de que deseas eliminarla?`;
-    }
+    const msg = `¿Eliminar la entrega #${index + 1} (${kg} kg)?`;
 
     if (await confirmDialog({ message: msg, danger: true })) {
       setForm((f: any) => {
@@ -79,111 +79,11 @@ export function useOrderDeliveries(
         return { ...f, deliveries: next };
       });
     }
-  }, [setForm]);
+  }, [setForm, deliveries]);
 
   const facturarEntrega = useCallback((index: number) => {
-    setForm((f: any) => {
-      const nextDelivs = [...f.deliveries];
-      nextDelivs[index] = { ...nextDelivs[index], invoiced: true };
-      
-      // Calculate how many total kilos were in this delivery and map items
-      const d = nextDelivs[index];
-      const dItems = d.items || [];
-      const kilos = dItems.reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0) || d.kilos || 0;
-
-      const orderItems = f.items || [];
-      let invoiceItems: any[] = [];
-
-      const defaultSellPrice = Number(f.customSellPrice ?? 0);
-      const defaultCostPrice = Number(f.customCostPrice ?? 0);
-
-      if (dItems.length > 0) {
-        invoiceItems = dItems
-          .filter((di: any) => Number(di.quantity) > 0)
-          .map((di: any) => {
-            const matched = orderItems.find((oi: any) => oi.id === di.itemId || oi.code === di.itemId);
-            const unitPrice = Number(matched?.unitPrice ?? defaultSellPrice);
-            const qty = Number(di.quantity);
-            return {
-              id: matched?.id || crypto.randomUUID(),
-              code: matched?.code || '24141500',
-              description: matched?.description || 'Bolsa de Polietileno',
-              quantity: qty,
-              unit: matched?.unit || 'Kilos',
-              unitPrice: unitPrice,
-              amount: qty * unitPrice,
-            };
-          });
-      } else if (orderItems.length === 1 && kilos > 0) {
-        const matched = orderItems[0];
-        const unitPrice = Number(matched.unitPrice ?? defaultSellPrice);
-        invoiceItems = [{
-          id: matched.id || crypto.randomUUID(),
-          code: matched.code || '24141500',
-          description: matched.description || 'Bolsa de Polietileno',
-          quantity: kilos,
-          unit: matched.unit || 'Kilos',
-          unitPrice: unitPrice,
-          amount: kilos * unitPrice,
-        }];
-      } else if (orderItems.length > 1 && kilos > 0) {
-        // Si la entrega no trajo desglose partida por partida pero la OC tiene varios artículos,
-        // incluir las partidas proporcionales o completas
-        invoiceItems = orderItems.map((matched: any) => {
-          const unitPrice = Number(matched.unitPrice ?? defaultSellPrice);
-          const qty = Number(matched.quantity || 0);
-          return {
-            id: matched.id || crypto.randomUUID(),
-            code: matched.code || '24141500',
-            description: matched.description || 'Bolsa de Polietileno',
-            quantity: qty,
-            unit: matched.unit || 'Kilos',
-            unitPrice: unitPrice,
-            amount: qty * unitPrice,
-          };
-        });
-      }
-
-      const invSubtotal = invoiceItems.reduce((acc, it) => acc + (it.amount || 0), 0) || (kilos * defaultSellPrice);
-      const invTotal = invSubtotal * 1.16;
-
-      // Draft a new invoice with complete items and financials
-      const newInv: Invoice = {
-        id: crypto.randomUUID(),
-        orderId: f.id || '',
-        kilos,
-        items: invoiceItems.length > 0 ? invoiceItems : undefined,
-        financials: {
-          salePricePerKg: defaultSellPrice,
-          costPricePerKg: defaultCostPrice,
-          commissionRate: 0.08,
-          saleTotal: invSubtotal,
-          costTotal: kilos * defaultCostPrice,
-          commission: invSubtotal * 0.08,
-          invoiceTotal: invTotal,
-          netCashFlow: invSubtotal - (kilos * defaultCostPrice) - (invSubtotal * 0.08),
-        },
-        creditCycle: {
-          status: 'pending',
-          issueDate: Timestamp.now(),
-          dueDate: Timestamp.fromMillis(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        },
-        collection: {
-          paidAmount: 0,
-          contrareciboNumber: '',
-          notes: invoiceItems.length > 0 ? `Conceptos: ${invoiceItems.map(it => `${it.description} (${it.quantity} kg)`).join(' · ')}` : ''
-        }
-      };
-
-      return {
-        ...f,
-        deliveries: nextDelivs,
-        invoices: [...f.invoices, newInv]
-      };
-    });
-    
-    if (setTab) setTab('facturas');
-  }, [setForm, setTab]);
+    onInvoice?.(index);
+  }, [onInvoice]);
 
   return {
     addDelivery,

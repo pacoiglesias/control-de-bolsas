@@ -14,7 +14,7 @@ import type { PurchaseOrder } from '../../lib/types';
 
 /**
  * FIX (v8.9.8, split de pages/Dashboard.tsx — ~1460 lineas): encabezado
- * principal consolidado (titulo, boton "Nuevo Expediente", dropdowns de
+ * principal consolidado (titulo, boton "Nueva orden", dropdowns de
  * Reportes/Balanza y Exportar, barra de filtrado por departamento y mes)
  * extraido tal cual, sin cambiar logica. `shareRentabilidad`/
  * `printRentabilidad` se quedan definidas en el padre (dependen de `k`,
@@ -91,13 +91,13 @@ export function DashboardHeaderToolbar({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 14 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <h1 style={{ margin: 0, fontSize: 26, fontWeight: 900, letterSpacing: '-0.5px' }}>Dashboard Maestro</h1>
+            <h1 style={{ margin: 0, fontSize: 26, fontWeight: 900, letterSpacing: '-0.5px' }}>Control de bolsas</h1>
             <span className="badge" style={{ background: 'var(--accent)', color: '#fff', fontSize: 11, fontWeight: 800, padding: '2px 8px' }}>
-              v{__APP_VERSION__} Enterprise
+              v{__APP_VERSION__}
             </span>
           </div>
           <p style={{ margin: '4px 0 0', color: 'var(--ink-soft)', fontSize: 13 }}>
-            Control Integral de Compra-Venta, Flujo de Efectivo, Cobranza y Suministro a Providencia.
+            Entregas, facturas y cobros en un solo lugar.
           </p>
         </div>
 
@@ -124,7 +124,7 @@ export function DashboardHeaderToolbar({
               onClick={onOpenUniversalUpload}
             >
               <span style={{ fontSize: 16 }}>📥</span>
-              <span>Subir / Pegar Doc</span>
+              <span>Subir documento</span>
             </button>
           )}
 
@@ -157,7 +157,7 @@ export function DashboardHeaderToolbar({
             purchases={purchases}
             expenses={expenses}
             config={config}
-            onClick={() => nav('/auditoria')}
+            onClick={() => nav('/audit')}
           />
 
           {/* DROPDOWN OPERACIONES & CUADRE (Consolidación UX v9.10) */}
@@ -220,7 +220,7 @@ export function DashboardHeaderToolbar({
                       onOpenCuadreEjecutivo();
                     }}
                   >
-                    ⚡ Cuadre Rápido (Ctrl+E)
+                    ⚡ Revisar cuadre
                   </button>
                 )}
                 {onOpenDiferencias && (

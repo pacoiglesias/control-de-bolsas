@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { Card, Skeleton } from '../components/ui';
 import { Timestamp } from 'firebase/firestore';
 import { useOrders } from '../hooks/useOrders';
-import { Invoice } from '../lib/types';
+import { Invoice, type PurchaseOrder } from '../lib/types';
 import { db, PATHS } from '../lib/firebase';
 import { doc, runTransaction } from 'firebase/firestore';
 import { useToast } from '../context/ToastContext';
@@ -11,6 +11,8 @@ import { camposInvoices } from '../lib/invoiceOps';
 import { SmartDocumentDropzone, ExtractedDocumentData } from '../components/Recepcion/SmartDocumentDropzone';
 import { DocumentAutoAssigner } from '../components/Recepcion/DocumentAutoAssigner';
 import { triggerHaptic } from '../lib/hapticEngine';
+import { assertDeliveryFitsOrder, computeDeliveredTotals } from '../lib/deliveries';
+import { cleanUndefined } from '../lib/cleanUndefined';
 
 interface IncompleteInvoice {
   orderId: string;
@@ -46,7 +48,7 @@ export function FastEntry() {
     return activeOrders.map(o => {
       const itemsSum = (o.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
       const pedidos = itemsSum > 0 ? itemsSum : (Number(o.totalKilograms) || 0);
-      const entregados = o.deliveries?.reduce((a, b) => a + (b.kilos || 0), 0) ?? 0;
+      const entregados = computeDeliveredTotals(o.deliveries ?? [], o.items).kilosEntregados;
       const faltante = Math.max(0, pedidos - entregados);
       return { order: o, pedidos, entregados, faltante };
     }).filter(x => x.faltante > 0.01);
@@ -140,10 +142,13 @@ export function FastEntry() {
     // Validate over-delivery
     for (const orderId of keys) {
       const val = logisticsEdits[orderId];
-      if (!val.kilos || !val.date) continue;
+      if (!val.kilos || !val.date) {
+        toast('Completa los kilos y la fecha de cada entrega antes de guardar.', 'bad');
+        return;
+      }
       
       const k = Number(val.kilos);
-      if (isNaN(k) || k <= 0) {
+      if (!Number.isFinite(k) || k <= 0) {
         toast('Los kilos deben ser un número mayor a 0.', 'bad');
         return;
       }
@@ -170,13 +175,14 @@ export function FastEntry() {
 
         refs.forEach(({ id, ref }, index) => {
           const snap = snaps[index];
-          if (!snap.exists()) return;
+          if (!snap.exists()) throw new Error('Una de las órdenes ya no existe. Actualiza la captura.');
           
           const val = logisticsEdits[id];
           if (!val.kilos || !val.date) return;
           
           const deliveries = snap.data().deliveries ?? [];
           const k = Number(val.kilos);
+          assertDeliveryFitsOrder(snap.data() as PurchaseOrder, k);
           const [yyyy, mm, dd] = val.date.split('-');
           const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd), 12, 0, 0);
 
@@ -212,24 +218,26 @@ export function FastEntry() {
     }
 
     // Validación Antiduplicados
-    const allExistingFolios = activeOrders.flatMap(o => (o.invoices || []).map(i => i.folio?.trim().toLowerCase())).filter(Boolean);
-    const allExistingCRs = activeOrders.flatMap(o => (o.invoices || []).map(i => i.collection?.contrareciboNumber?.trim().toLowerCase())).filter(Boolean);
+    const capturedFolios = new Set<string>();
 
     for (const key of keys) {
       const val = edits[key].trim();
       if (!val) continue;
       const valLower = val.toLowerCase();
       const isFactura = key.includes('___factura');
-      const [orderId] = key.split('___');
+      const [orderId, invoiceId] = key.split('___');
       const targetOrder = activeOrders.find(o => o.id === orderId);
       const isTH = targetOrder?.department === 'TH' || (targetOrder?.client || '').toUpperCase().includes('TH');
       const isGT = targetOrder?.department === 'GT' || (targetOrder?.client || '').toUpperCase().includes('GT');
       
-      if (isFactura && allExistingFolios.includes(valLower)) {
+      const duplicateFolio = orders.some(order => (order.invoices ?? []).some(invoice =>
+        invoice.id !== invoiceId && invoice.folio?.trim().toLowerCase() === valLower));
+      if (isFactura && (duplicateFolio || capturedFolios.has(valLower))) {
         triggerHaptic('warning');
         toast(`El folio de factura ${val} ya existe en otra orden.`, 'bad');
         return;
       }
+      if (isFactura) capturedFolios.add(valLower);
       if (!isFactura) {
         const valUpper = val.toUpperCase();
         if (isTH && valUpper.startsWith('GT-')) {
@@ -242,11 +250,7 @@ export function FastEntry() {
           toast(`⚠️ Separación Estricta: La factura de ${targetOrder?.client || 'GT'} no puede llevar un contrarecibo TH (${valUpper}).`, 'bad');
           return;
         }
-        if (allExistingCRs.includes(valLower)) {
-          triggerHaptic('warning');
-          toast(`El contrarecibo ${val} ya existe en otra orden.`, 'bad');
-          return;
-        }
+        // Un contrarrecibo puede amparar varias facturas de la misma planta.
       }
     }
 
@@ -295,7 +299,12 @@ export function FastEntry() {
           });
           
           if (modified) {
-            tx.update(ref, camposInvoices(invoices));
+            tx.update(ref, cleanUndefined(camposInvoices(invoices)));
+            for (const invoice of invoices) {
+              if (updates.some(update => update.invoiceId === invoice.id)) {
+                tx.set(doc(db, PATHS.invoices, invoice.id), cleanUndefined({ ...invoice, orderId: id }), { merge: true });
+              }
+            }
           }
         });
       });

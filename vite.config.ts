@@ -127,7 +127,7 @@ export default defineConfig(({ mode }) => {
   server: { port: 5173, open: true },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     testTimeout: 15000,
     coverage: {
       provider: 'v8',

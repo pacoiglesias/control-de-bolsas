@@ -1,11 +1,8 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { doc, Timestamp } from 'firebase/firestore';
-import { safeUpdateDoc } from '../../lib/safeFirestore';
-import { db, PATHS } from '../../lib/firebase';
+import { Timestamp } from 'firebase/firestore';
 import { useToast } from '../../context/ToastContext';
 import { useOrders } from '../../hooks/useOrders';
-import { camposInvoices } from '../../lib/invoiceOps';
 import { Modal } from '../ui';
 import type { PurchaseOrder, Invoice, PurchaseOrderItem, Delivery } from '../../lib/types';
 import { round2, getOrderSummary, computeFinancials, validateInvoiceWeightGuardrail } from '../../lib/finance';
@@ -13,7 +10,8 @@ import { nombreClienteVisible } from '../../lib/format';
 import { useConfig } from '../../hooks/useConfig';
 import { useDuplicateRadar } from '../../hooks/useDuplicateRadar';
 import { parseXmlInvoice } from '../../lib/xmlParser';
-import { computeItemInvoiceBreakdown, linkDeliveriesToInvoice } from '../../lib/deliveries';
+import { computeItemInvoiceBreakdown } from '../../lib/deliveries';
+import { useInvoiceActions } from '../OrderModal/useInvoiceActions';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import { downloadPrefacturaExcel } from '../../lib/excelTemplateGenerator';
 import { downloadCfdi40DraftXmlFile } from '../../lib/cfdiXmlGenerator';
@@ -37,6 +35,7 @@ export function QuickInvoiceModal({
   const toast = useToast();
   const { config } = useConfig();
   const { orders: allOrders } = useOrders();
+  const { saveInvoice } = useInvoiceActions();
 
   // Encontrar todas las órdenes activas/abiertas del ERP
   const validOrders = useMemo(() => {
@@ -44,6 +43,8 @@ export function QuickInvoiceModal({
       if ((o as any).isDeleted) return false;
       const summary = getOrderSummary(o);
       const kOrd = Number(o.totalKilograms) || (o.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
+      const available = (o.deliveries?.length ?? 0) > 0 ? summary.kilosDelivered : kOrd;
+      if (available - summary.kilosInvoiced <= 0.01) return false;
       const isPaidAndDelivered =
         (o.creditCycle?.status === 'collected' || o.creditCycle?.status === 'paid') &&
         summary.kilosInvoiced >= summary.kilosDelivered - 0.01 &&
@@ -88,12 +89,12 @@ export function QuickInvoiceModal({
     if (!selectedOrder) return 0;
     const summary = getOrderSummary(selectedOrder);
     const unbilledDelivered = round2(Math.max(0, summary.kilosDelivered - summary.kilosInvoiced));
-    if (unbilledDelivered > 0.01) return unbilledDelivered;
+    if ((selectedOrder.deliveries?.length ?? 0) > 0) return unbilledDelivered;
     const kOrd =
       Number(selectedOrder.totalKilograms) ||
       (selectedOrder.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
     const unbilledOrdered = round2(Math.max(0, kOrd - summary.kilosInvoiced));
-    return unbilledOrdered > 0 ? unbilledOrdered : kOrd;
+    return unbilledOrdered;
   }, [selectedOrder]);
 
   // Datos para la barra de 4 niveles
@@ -129,8 +130,8 @@ export function QuickInvoiceModal({
     return list;
   }, [validOrders]);
 
-  const currentSellPrice = selectedOrder?.customSellPrice || config?.salePricePerKg || 0;
-  const currentCostPrice = selectedOrder?.customCostPrice || config?.costPricePerKg || 0;
+  const currentSellPrice = selectedOrder?.customSellPrice ?? config?.salePricePerKg ?? 0;
+  const currentCostPrice = selectedOrder?.customCostPrice ?? config?.costPricePerKg ?? 0;
 
   const loadRowsForOrder = (oId: string, ordersList: PurchaseOrder[]) => {
     const order = ordersList.find((o) => o.id === oId);
@@ -139,7 +140,7 @@ export function QuickInvoiceModal({
       return;
     }
 
-    const sellPrice = order.customSellPrice || config?.salePricePerKg || 0;
+    const sellPrice = order.customSellPrice ?? config?.salePricePerKg ?? 0;
     const breakdown = computeItemInvoiceBreakdown(order, sellPrice);
 
     if (breakdown.length > 0) {
@@ -156,7 +157,7 @@ export function QuickInvoiceModal({
         alreadyDelivered: b.alreadyDelivered,
         uninvoicedDeliveredKilos: b.uninvoicedDeliveredKilos,
         remainingOcKilos: b.remainingOcKilos,
-        maxAvailable: b.uninvoicedDeliveredKilos > 0 ? b.uninvoicedDeliveredKilos : b.remainingOcKilos,
+        maxAvailable: (order.deliveries?.length ?? 0) > 0 ? b.suggestedKilosToInvoice : b.remainingOcKilos,
       }));
       setConceptRows(rows);
     } else {
@@ -297,13 +298,13 @@ export function QuickInvoiceModal({
   const subtotalEstimado = useMemo(() => {
     return round2(
       selectedRows.reduce(
-        (acc, r) => acc + (Number(r.quantity) || 0) * (Number(r.unitPrice) || currentSellPrice),
+        (acc, r) => acc + (Number(r.quantity) || 0) * Number(r.unitPrice),
         0
       )
     );
-  }, [selectedRows, currentSellPrice]);
+  }, [selectedRows]);
 
-  const ivaRate = config?.ivaRate || 0.16;
+  const ivaRate = config?.ivaRate ?? 0.16;
   const ivaEstimado = useMemo(() => round2(subtotalEstimado * ivaRate), [subtotalEstimado, ivaRate]);
   const totalEstimadoConIva = useMemo(() => round2(subtotalEstimado + ivaEstimado), [subtotalEstimado, ivaEstimado]);
 
@@ -324,16 +325,39 @@ export function QuickInvoiceModal({
     try {
       const text = await file.text();
       const parsed = parseXmlInvoice(text);
+      if (!selectedOrder) throw new Error('Selecciona primero la orden de la factura.');
+      if (parsed.tipoComprobante !== 'I') throw new Error('Selecciona una factura de ingreso; los complementos de pago se registran en Cobranza.');
+      if (parsed.ocNumber && parsed.ocNumber !== selectedOrder.oc) throw new Error('El XML corresponde a otra orden de compra.');
+      if (!parsed.conceptos.length || parsed.conceptos.some(concept => concept.claveUnidad !== 'KGM' || concept.cantidad <= 0)) {
+        throw new Error('Este XML requiere revisión de unidades. Usa Subir documento para revisar sus conceptos.');
+      }
+      const importedSubtotal = round2(parsed.conceptos.reduce((sum, concept) => sum + concept.cantidad * concept.valorUnitario, 0));
+      if (Math.abs(importedSubtotal - parsed.subTotal) > 0.02 || Math.abs(round2(parsed.subTotal * (1 + ivaRate)) - parsed.total) > 0.02) {
+        throw new Error('Este XML contiene descuentos o impuestos distintos de la configuración. Revísalo en Subir documento antes de registrarlo.');
+      }
+      const breakdown = computeItemInvoiceBreakdown(selectedOrder, currentSellPrice);
+      setConceptRows(parsed.conceptos.map((concept, index) => {
+        const matched = breakdown.find(item => (concept.codigo && item.code === concept.codigo) || item.description.trim().toLowerCase() === concept.descripcion.trim().toLowerCase());
+        return { id: matched?.id ?? `xml-${index}`, code: concept.codigo || concept.claveProdServ || '24141500',
+          description: concept.descripcion, unit: 'KGM', unitPrice: concept.valorUnitario, selected: true, quantity: concept.cantidad,
+          ocQuantity: matched?.ocQuantity ?? 0, alreadyInvoiced: matched?.alreadyInvoiced ?? 0,
+          alreadyDelivered: matched?.alreadyDelivered ?? 0, uninvoicedDeliveredKilos: matched?.uninvoicedDeliveredKilos ?? 0,
+          remainingOcKilos: matched?.remainingOcKilos ?? availableKilos, maxAvailable: matched?.suggestedKilosToInvoice ?? availableKilos };
+      }));
       if (parsed.folio) setFolio(parsed.folio);
       if (parsed.uuid) setUuidFiscal(parsed.uuid);
-      toast(`✅ Factura #${parsed.folio || 'S/F'} vinculada desde XML (UUID: ${parsed.uuid?.slice(0, 8)}...)`, 'ok');
+      toast(`Factura ${parsed.folio || 'sin folio'} cargada con ${parsed.conceptos.length} conceptos. Revisa los importes y confirma el registro.`, 'ok');
     } catch (err: any) {
       toast(`Error al leer XML: ${err.message}`, 'bad');
     }
   };
 
   const handleInvoice = async (overrideFolio?: string) => {
-    if (!selectedOrder) return;
+    if (!selectedOrder || saving) return;
+    if (selectedRows.some(row => !Number.isFinite(Number(row.quantity)) || Number(row.quantity) <= 0 ||
+      !Number.isFinite(Number(row.unitPrice)) || Number(row.unitPrice) < 0)) {
+      return toast('Cada concepto seleccionado debe tener kilos positivos y un precio válido.', 'bad');
+    }
     const targetFolio = (overrideFolio || folio).trim();
     if (selectedRows.length === 0) {
       triggerHaptic('warning');
@@ -365,7 +389,7 @@ export function QuickInvoiceModal({
 
     setSaving(true);
     try {
-      const newInvoiceId = `inv_${Date.now()}`;
+      const newInvoiceId = crypto.randomUUID();
       const effectiveConfig = {
         ...config,
         salePricePerKg: currentSellPrice,
@@ -380,8 +404,8 @@ export function QuickInvoiceModal({
         description: r.description.trim(),
         quantity: Number(r.quantity) || 0,
         unit: r.unit || 'KGM',
-        unitPrice: Number(r.unitPrice) || currentSellPrice,
-        amount: round2((Number(r.quantity) || 0) * (Number(r.unitPrice) || currentSellPrice)),
+        unitPrice: Number(r.unitPrice),
+        amount: round2((Number(r.quantity) || 0) * Number(r.unitPrice)),
       }));
 
       const conceptNotes = invoiceItems
@@ -403,7 +427,7 @@ export function QuickInvoiceModal({
         creditCycle: {
           status: 'pending',
           issueDate: Timestamp.now(),
-          dueDate: Timestamp.fromMillis(Date.now() + (config?.creditDays || 30) * 24 * 60 * 60 * 1000),
+          dueDate: Timestamp.fromMillis(Date.now() + (config?.creditDays ?? 30) * 24 * 60 * 60 * 1000),
         },
         collection: {
           paidAmount: 0,
@@ -412,24 +436,11 @@ export function QuickInvoiceModal({
         },
       };
 
-      // Vincular entregas de báscula a la factura usando el motor unificado
-      const updatedDeliveries = linkDeliveriesToInvoice(
-        selectedOrder.deliveries || [],
-        newInvoiceId,
-        kilosToInvoice
-      );
-
-      const updatedInvoices = [...(selectedOrder.invoices || []), newInvoice];
-
-      const payload = {
-        deliveries: updatedDeliveries,
-        ...camposInvoices(updatedInvoices),
-      };
-
-      await safeUpdateDoc(doc(db, PATHS.orders, selectedOrder.id), payload);
+      // La misma transacción actualiza la OC, sus entregas y el espejo de cobranza.
+      // Los límites se vuelven a comprobar con el expediente actual del servidor.
+      await saveInvoice(selectedOrder, newInvoice, effectiveConfig);
 
       triggerHaptic('success');
-      toast('✅ Factura emitida con conceptos desglosados y kilos descontados exitosamente', 'ok');
       onClose();
     } catch (e: any) {
       triggerHaptic('error');
@@ -437,14 +448,6 @@ export function QuickInvoiceModal({
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleOneClickInvoice = () => {
-    if (!selectedOrder) return;
-    const suggested = `F-${Date.now().toString().slice(-4)}`;
-    setFolio(suggested);
-    toast(`⚡ Folio ${suggested} generado. Facturando en 1 clic...`, 'ok');
-    handleInvoice(suggested);
   };
 
   // Entregas de la orden seleccionada
@@ -579,7 +582,7 @@ export function QuickInvoiceModal({
   };
 
   return (
-    <Modal title="🧾 Facturación Rápida Multi-Concepto" onClose={onClose} wide>
+    <Modal title="Registrar factura" onClose={onClose} wide>
       <style>{`
         @media (max-width: 680px) {
           .qim-concept-table { display: none !important; }
@@ -743,7 +746,6 @@ export function QuickInvoiceModal({
               onDownloadXmlDraft={handleDownloadXmlDraft}
               onWhatsAppContador={handleWhatsAppContador}
               onXmlSelected={handleXmlSelected}
-              onOneClickInvoice={handleOneClickInvoice}
               selectedRowsCount={selectedRows.length}
               guardrail={selectedOrder ? validateInvoiceWeightGuardrail(selectedOrder, kilosToInvoice) : null}
             />

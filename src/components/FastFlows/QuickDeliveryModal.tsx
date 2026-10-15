@@ -13,7 +13,8 @@ import { printSingleDeliveryRemision } from '../OrderModal/orderModalPrint';
 import { findDuplicateRemision } from '../../lib/duplicateGuards';
 import { getEffectiveOrderItems } from '../../lib/types';
 import { distributeKilosAcrossItems } from '../../lib/scaleTicketParser';
-import { computeDeliveredTotals } from '../../lib/deliveries';
+import { computeDeliveredTotals, assertDeliveryFitsOrder } from '../../lib/deliveries';
+import { cleanUndefined } from '../../lib/cleanUndefined';
 import { CameraTicketScannerModal, type CameraScanResult } from '../Recepcion/CameraTicketScannerModal';
 
 interface QuickDeliveryModalProps {
@@ -30,14 +31,14 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
   const pendingOrders = useMemo(() => {
     return orders
       .filter((o) => {
-        if (!o || o.isClosedShort) return false;
+        if (!o || o.isDeleted || o.isClosedShort) return false;
         const summary = getOrderSummary(o);
-        const total = Number(o.totalKilograms) || 0;
+        const total = (o.items ?? []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0) || Number(o.totalKilograms) || 0;
         return summary.kilosDelivered < total - 0.01;
       })
       .map((o) => {
         const summary = getOrderSummary(o);
-        const total = Number(o.totalKilograms) || 0;
+        const total = (o.items ?? []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0) || Number(o.totalKilograms) || 0;
         const entregados = summary.kilosDelivered;
         const faltante = round2(Math.max(0, total - entregados));
         return {
@@ -59,7 +60,10 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
   const selectedInfo = pendingOrders.find((p) => p.order.id === selectedOrderId);
 
   const [kilos, setKilos] = useState<number | ''>(selectedInfo ? selectedInfo.faltante : '');
-  const [dateStr, setDateStr] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [dateStr, setDateStr] = useState<string>(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  });
   const [driver, setDriver] = useState<string>('Andrés');
   const [docType, setDocType] = useState<'remision' | 'factura'>('remision');
   const [docFolio, setDocFolio] = useState<string>('');
@@ -119,12 +123,13 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
   const willExceed = selectedInfo && typeof kilos === 'number' && kilos > selectedInfo.faltante;
 
   const handleSaveDelivery = async () => {
+    if (saving) return;
     if (!selectedInfo) {
       toast('Selecciona una orden de compra válida.', 'bad');
       return;
     }
     const k = Number(kilos);
-    if (!k || k <= 0) {
+    if (!Number.isFinite(k) || k <= 0) {
       toast('Ingresa una cantidad de kilos válida mayor a 0.', 'bad');
       return;
     }
@@ -163,6 +168,11 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
         }
 
         const data = snap.data();
+        assertDeliveryFitsOrder(data as PurchaseOrder, k, finalDeliveryItems);
+        if (docFolio.trim() && (data.deliveries ?? []).some((delivery: Delivery) =>
+          delivery.docFolio?.trim().toUpperCase() === docFolio.trim().toUpperCase())) {
+          throw new Error('Esta remisión ya está registrada en la orden.');
+        }
         const existingDeliveries: Delivery[] = data.deliveries ?? [];
 
         const [yyyy, mm, dd] = dateStr.split('-');
@@ -181,10 +191,10 @@ export function QuickDeliveryModal({ orders, initialOrderId, onClose, onOpenInvo
         };
 
         existingDeliveries.push(newDelivery);
-        tx.update(orderRef, {
+        tx.update(orderRef, cleanUndefined({
           deliveries: existingDeliveries,
           updatedAt: Timestamp.now(),
-        });
+        }));
       });
 
       sound.playChaChing();

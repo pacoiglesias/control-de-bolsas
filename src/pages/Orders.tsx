@@ -58,6 +58,7 @@ export default function Orders() {
   const [clientReportOrder, setClientReportOrder] = useState<PurchaseOrder | null>(null);
   const [contextMenu, setContextMenu] = useState<{ order: PurchaseOrder; x: number; y: number } | null>(null);
   const [initialModalTab, setInitialModalTab] = useState<'resumen' | 'productos' | 'andres' | 'entregas' | 'facturas' | 'historial'>('resumen');
+  const [focusedInvoiceId, setFocusedInvoiceId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list'|'kanban'|'radar'>('list');
   
   const [page, setPage] = useState(1);
@@ -110,6 +111,7 @@ export default function Orders() {
     if (!abrirId || orders.length === 0) return;
     const found = orders.find((o) => o.id === abrirId);
     if (found) {
+      setFocusedInvoiceId(params.get('factura'));
       const targetTab = params.get('tab');
       if (targetTab) {
         setInitialModalTab(targetTab as any);
@@ -117,6 +119,7 @@ export default function Orders() {
       setSelected(found);
       const newParams = new URLSearchParams(params);
       newParams.delete('abrir');
+      newParams.delete('factura');
       newParams.delete('tab');
       setParams(newParams, { replace: true });
     }
@@ -1256,9 +1259,10 @@ export default function Orders() {
         <OrderModal
           order={orders.find((o) => o.id === selected.id) ?? selected}
           config={config}
-          onClose={() => setSelected(null)}
+          onClose={() => { setSelected(null); setFocusedInvoiceId(null); }}
           readOnly={role === 'viewer'}
           initialTab={initialModalTab}
+          focusInvoiceId={focusedInvoiceId}
         />
       )}
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Delivery, PurchaseOrder } from '../../lib/types';
 import { round2 } from '../../lib/finance';
+import { getDeliveryBilling } from '../../lib/deliveries';
 
 interface InvoiceDeliveryHistoryProps {
   deliveries: Delivery[];
@@ -41,8 +42,8 @@ export function InvoiceDeliveryHistory({ deliveries, order }: InvoiceDeliveryHis
       ? round2(d.items.reduce((s, it) => s + Number(it.quantity || 0), 0))
       : round2(Number(d.kilos || 0));
 
-  const totalPending = round2(pendingDeliveries.reduce((s, d) => s + deliveryKilos(d), 0));
-  const totalInvoiced = round2(invoicedDeliveries.reduce((s, d) => s + deliveryKilos(d), 0));
+  const totalPending = round2(deliveries.reduce((s, d) => s + getDeliveryBilling(d).pendingKilos, 0));
+  const totalInvoiced = round2(deliveries.reduce((s, d) => s + getDeliveryBilling(d).invoicedKilos, 0));
 
   return (
     <div style={{ background: 'var(--paper-raised)', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
@@ -76,8 +77,7 @@ export function InvoiceDeliveryHistory({ deliveries, order }: InvoiceDeliveryHis
               {pendingDeliveries.length > 0
                 ? `${pendingDeliveries.length} sin facturar (${totalPending.toLocaleString('es-MX')} kg)`
                 : 'Todas las entregas ya facturadas'}
-              {invoicedDeliveries.length > 0 &&
-                ` · ${invoicedDeliveries.length} facturada${invoicedDeliveries.length !== 1 ? 's' : ''} (${totalInvoiced.toLocaleString('es-MX')} kg)`}
+              {totalInvoiced > 0 && ` · ${totalInvoiced.toLocaleString('es-MX')} kg facturados`}
             </div>
           </div>
         </div>
@@ -219,7 +219,8 @@ function DeliveryRow({
           border: invoiced ? '1px solid rgba(124,58,237,0.25)' : '1px solid rgba(5,150,105,0.3)',
         }}
       >
-        {invoiced ? 'Facturada' : 'Sin facturar'}
+        {invoiced ? 'Facturada' : getDeliveryBilling(d).invoicedKilos > 0
+          ? `Parcial: faltan ${getDeliveryBilling(d).pendingKilos.toLocaleString('es-MX')} kg` : 'Sin facturar'}
       </span>
     </div>
   );

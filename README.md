@@ -1,6 +1,6 @@
 # ERP Control Bolsas — Bolsas Elemental / Grupo Textil Providencia
 
-**Versión:** `v9.3.0`  
+**Versión:** `v9.11.0`
 **Estado:** Producción Activa  
 **URLs Oficiales:**
 - 🌐 Dominio Principal: [https://bolsas.cobertores.com](https://bolsas.cobertores.com)
@@ -14,8 +14,8 @@
 Sistema ERP especializado en la intermediación, conciliación de remisiones físicas de báscula, facturación CFDI multi-concepto, control de contrarecibos oficiales (`TH-` y `GT-`) y auditoría de maquila con el taller de Andrés y el cliente Grupo Textil Providencia (Plantas TH-ALMACEN-1 y P4-ALM).
 
 - **Stack:** React 18 + TypeScript 5 + Vite PWA + Firebase Cloud Functions (Node 22) + Cloud Firestore
-- **Pruebas Automatizadas:** 148+ pruebas unitarias matemáticas y financieras en Vitest (`npm test`)
-- **Cobertura mínima:** 80% (statements, branches, functions, lines) — validado en CI
+- **Pruebas Automatizadas:** pruebas de cálculos, persistencia e interacción de interfaz en Vitest (`npm test`)
+- **Cobertura mínima:** 70% en statements, functions y lines; 50% en branches — validado en CI
 
 ---
 
@@ -69,7 +69,7 @@ npm run test:coverage
 npm run test:ci
 ```
 
-El reporte HTML se genera en `coverage/index.html`. El umbral mínimo es **80%** en todos los métricas.
+El reporte HTML se genera en `coverage/index.html`. El umbral mínimo es 70% en líneas, sentencias y funciones; 50% en ramas (según vite.config.ts).
 
 ---
 

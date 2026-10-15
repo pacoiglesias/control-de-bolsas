@@ -61,19 +61,7 @@ export default function Dashboard() {
   const nav = useNavigate();
   const toast = useToast();
 
-  // Consola de Cuadre Ejecutivo Directo (Ctrl + E)
   const [showCuadreModal, setShowCuadreModal] = useState(false);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'e' || e.key === 'E')) {
-        e.preventDefault();
-        setShowCuadreModal((prev) => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
 
   // Estados de Monitoreo y Respaldos
   const [health] = useState<{ snapshotDate: Date | null; recentLogs: number; dbStatus: string }>({
@@ -389,13 +377,13 @@ export default function Dashboard() {
   return (
     <div className="dashboard-container" style={{ maxWidth: 1600, margin: '0 auto', paddingBottom: 60 }}>
       {/* 0. Franja Superior de Pulso Financiero en Vivo */}
-      <DashboardLiveTicker
+      {viewMode !== 'executive' && <DashboardLiveTicker
         saldoCaja={saldoCaja}
         porCobrar={k.porCobrar}
         deudaAndres={k.deudaAndres}
         providerName={settings?.providerName || 'Andrés'}
         kilosTotal={k.kilosTotal}
-      />
+      />}
 
       {/* 1. Encabezado Maestro y Filtro Departamental (TH vs GT) */}
       <DashboardHeaderToolbar

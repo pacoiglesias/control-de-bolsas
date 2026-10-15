@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { doc, runTransaction, Timestamp, serverTimestamp } from 'firebase/firestore';
+import { doc, runTransaction, Timestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import type { Invoice, PurchaseOrder } from '../../lib/types';
 import { camposInvoices } from '../../lib/invoiceOps';
@@ -11,6 +11,8 @@ import { confirmDialog } from '../../lib/confirmDialog';
 import { findDuplicateInvoiceFolio } from '../../lib/duplicateGuards';
 import { useOrders } from '../../hooks/useOrders';
 import { linkDeliveriesToInvoice, unmarkDeliveriesByInvoiceId } from '../../lib/deliveries';
+import { cleanUndefined } from '../../lib/cleanUndefined';
+import { round2, validateInvoiceWeightGuardrail } from '../../lib/finance';
 
 export function useInvoiceActions() {
   const toast = useToast();
@@ -37,20 +39,38 @@ export function useInvoiceActions() {
 
           const existingSaleTotal = updatedInvoice.financials?.saleTotal;
           const existingInvoiceTotal = updatedInvoice.financials?.invoiceTotal;
-          const k = Number(updatedInvoice.kilos) || 0;
+          const k = Number(updatedInvoice.kilos ?? 0);
+          if (!Number.isFinite(k) || k < 0) throw new Error('Los kilos de la factura no son válidos.');
+          if (currentOrder.isDeleted) throw new Error('La orden está en la papelera.');
+          const previousInvoice = currentInvoices[index];
+          const baselineInvoice = order.invoices?.find(invoice => invoice.id === updatedInvoice.id);
+          if (previousInvoice && baselineInvoice &&
+            (JSON.stringify(previousInvoice.collection) !== JSON.stringify(baselineInvoice.collection) ||
+              JSON.stringify(previousInvoice.creditCycle) !== JSON.stringify(baselineInvoice.creditCycle))) {
+            throw new Error('La cobranza de esta factura cambió mientras la editabas. Vuelve a abrirla antes de guardar.');
+          }
+          if (!previousInvoice || previousInvoice.kilos !== k) {
+            const limits = validateInvoiceWeightGuardrail(currentOrder, k, updatedInvoice.id);
+            if (limits.isOverOrdered || ((currentOrder.deliveries?.length ?? 0) > 0 && limits.isOverDelivered)) {
+              throw new Error('Los kilos superan el saldo disponible de la orden. Actualiza la captura con las entregas y facturas actuales.');
+            }
+          }
 
           // Jerarquía de precios y costos:
           // 1. Valores capturados en la factura
           // 2. Valores capturados a nivel orden de compra
           // 3. Configuración efectiva / fallback
-          const salePrice = updatedInvoice.financials?.salePricePerKg || order.customSellPrice || dynamicConfig.salePricePerKg;
-          const costPrice = updatedInvoice.financials?.costPricePerKg || order.customCostPrice || dynamicConfig.costPricePerKg;
+          const salePrice = updatedInvoice.financials?.salePricePerKg ?? currentOrder.customSellPrice ?? dynamicConfig.salePricePerKg;
+          const costPrice = updatedInvoice.financials?.costPricePerKg ?? currentOrder.customCostPrice ?? dynamicConfig.costPricePerKg;
           const commRate = updatedInvoice.financials?.commissionRate ?? order.financials?.commissionRate ?? dynamicConfig.commissionRate ?? 0.08;
+          if ([salePrice, costPrice, commRate].some(value => !Number.isFinite(value) || value < 0)) {
+            throw new Error('Revisa los precios y la comisión antes de guardar la factura.');
+          }
 
-          const hasRealSaleTotal = existingSaleTotal !== undefined && existingSaleTotal !== null && Number(existingSaleTotal) > 0;
+          const hasRealSaleTotal = existingSaleTotal != null && Number.isFinite(Number(existingSaleTotal)) && Number(existingSaleTotal) >= 0;
           const saleTotal = hasRealSaleTotal ? Number(existingSaleTotal) : Math.round(k * salePrice * 100) / 100;
 
-          const hasRealInvoiceTotal = existingInvoiceTotal !== undefined && existingInvoiceTotal !== null && Number(existingInvoiceTotal) > 0;
+          const hasRealInvoiceTotal = existingInvoiceTotal != null && Number.isFinite(Number(existingInvoiceTotal)) && Number(existingInvoiceTotal) >= 0;
           const ivaMultiplier = 1 + (dynamicConfig.ivaRate ?? 0.16);
           const invoiceTotal = hasRealInvoiceTotal ? Number(existingInvoiceTotal) : Math.round(saleTotal * ivaMultiplier * 100) / 100;
 
@@ -60,8 +80,8 @@ export function useInvoiceActions() {
           const netCashFlow = Math.round((saleTotal - costTotal - commission) * 100) / 100;
           const tradeMargin = Math.round((saleTotal - costTotal) * 100) / 100;
 
-          const isEstimatedPrice = !order.customSellPrice && !updatedInvoice.financials?.salePricePerKg && !hasRealSaleTotal;
-          const isEstimatedCost = !order.customCostPrice && !updatedInvoice.financials?.costPricePerKg;
+          const isEstimatedPrice = currentOrder.customSellPrice == null && updatedInvoice.financials?.salePricePerKg == null && !hasRealSaleTotal;
+          const isEstimatedCost = currentOrder.customCostPrice == null && updatedInvoice.financials?.costPricePerKg == null;
 
           const finalFinancials = {
             salePricePerKg: salePrice,
@@ -143,18 +163,16 @@ export function useInvoiceActions() {
           }
 
           // Vincular entregas de báscula a la factura
-          const updatedDeliveries = linkDeliveriesToInvoice(
-            currentOrder.deliveries || [],
-            finalInv.id,
-            finalInv.kilos || 0
-          );
+          const updatedDeliveries = previousInvoice && round2(previousInvoice.kilos) === round2(k)
+            ? currentOrder.deliveries || []
+            : linkDeliveriesToInvoice(currentOrder.deliveries || [], finalInv.id, k);
 
-          tx.update(orderRef, {
+          tx.update(orderRef, cleanUndefined({
             deliveries: updatedDeliveries,
             ...camposInvoices(newInvoicesArray),
-          });
+          }));
 
-          tx.set(invRef, finalInv, { merge: true });
+          tx.set(invRef, cleanUndefined(finalInv), { merge: true });
         });
 
         await logAction(user?.email, 'Factura Guardada', {
@@ -198,6 +216,11 @@ export function useInvoiceActions() {
 
           const currentOrder = snap.data() as PurchaseOrder;
           const currentInvoices = currentOrder.invoices || [];
+          const currentInvoice = currentInvoices.find(invoice => invoice.id === invoiceId);
+          if (currentInvoice && ((currentInvoice.collection?.paidAmount ?? 0) > 0 || currentInvoice.collection?.paidAt || currentInvoice.collection?.collectedAt ||
+            ['paid', 'collected'].includes(currentInvoice.creditCycle?.status))) {
+            throw new Error('Revierte primero los pagos de esta factura en Cobranza para conservar el historial de caja.');
+          }
           const newInvoicesArray = currentInvoices.filter((i) => i.id !== invoiceId);
 
           // Desvincular entregas asociadas a la factura eliminada
@@ -206,23 +229,11 @@ export function useInvoiceActions() {
             invoiceId
           );
 
-          if (
-            newInvoicesArray.length === 0 &&
-            (!currentOrder.items || currentOrder.items.length === 0 || currentOrder.creditCycle?.status !== 'pedido')
-          ) {
-            tx.update(orderRef, {
-              isDeleted: true,
-              deletedAt: serverTimestamp(),
-              deletedBy: user?.email || 'admin@sistema',
-              deliveries: updatedDeliveries,
-              ...camposInvoices([]),
-            });
-          } else {
-            tx.update(orderRef, {
+          // Quitar una factura conserva la OC y sus entregas para volver a facturarlas.
+          tx.update(orderRef, cleanUndefined({
               deliveries: updatedDeliveries,
               ...camposInvoices(newInvoicesArray),
-            });
-          }
+          }));
 
           tx.delete(invRef);
         });

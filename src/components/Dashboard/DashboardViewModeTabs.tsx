@@ -34,8 +34,8 @@ export function DashboardViewModeTabs({
     {
       key: 'executive',
       icon: '🌟',
-      label: 'Resumen Ejecutivo',
-      shortLabel: 'Resumen',
+      label: 'Mi día',
+      shortLabel: 'Mi día',
       accentColor: 'var(--accent)',
     },
     {
@@ -71,8 +71,8 @@ export function DashboardViewModeTabs({
     {
       key: 'pnl',
       icon: '⚖️',
-      label: 'Corte & P&L',
-      shortLabel: 'P&L',
+      label: 'Resultados',
+      shortLabel: 'Resultados',
       accentColor: '#059669',
     },
     {
@@ -86,91 +86,9 @@ export function DashboardViewModeTabs({
 
   return (
     <div style={{ marginBottom: 24 }}>
-      {/* Selector Rápido de Puestos de Operación */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 10,
-          flexWrap: 'wrap',
-          gap: 8,
-          padding: '0 4px',
-        }}
-      >
-        <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink-soft)', display: 'flex', alignItems: 'center', gap: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-          <span>👤 Vistas por Puesto:</span>
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={() => {
-              sound.playPop?.();
-              localStorage.setItem('preferred_job_view', 'bascula');
-              setViewMode('bascula');
-            }}
-            style={{
-              padding: '4px 10px',
-              borderRadius: 8,
-              fontSize: 11.5,
-              fontWeight: 800,
-              cursor: 'pointer',
-              border: viewMode === 'bascula' ? '1.5px solid #ea580c' : '1px solid var(--line-soft)',
-              background: viewMode === 'bascula' ? '#fff7ed' : 'var(--paper)',
-              color: viewMode === 'bascula' ? '#c2410c' : 'var(--ink-soft)',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            ⚖️ Báscula (Entregas & Patio)
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              sound.playPop?.();
-              localStorage.setItem('preferred_job_view', 'collection');
-              setViewMode('collection');
-            }}
-            style={{
-              padding: '4px 10px',
-              borderRadius: 8,
-              fontSize: 11.5,
-              fontWeight: 800,
-              cursor: 'pointer',
-              border: viewMode === 'collection' ? '1.5px solid #0284c7' : '1px solid var(--line-soft)',
-              background: viewMode === 'collection' ? '#f0f9ff' : 'var(--paper)',
-              color: viewMode === 'collection' ? '#0369a1' : 'var(--ink-soft)',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            💳 Cobranza (Facturas & CRs)
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              sound.playPop?.();
-              localStorage.setItem('preferred_job_view', 'executive');
-              setViewMode('executive');
-            }}
-            style={{
-              padding: '4px 10px',
-              borderRadius: 8,
-              fontSize: 11.5,
-              fontWeight: 800,
-              cursor: 'pointer',
-              border: viewMode === 'executive' ? '1.5px solid var(--accent)' : '1px solid var(--line-soft)',
-              background: viewMode === 'executive' ? 'var(--paper-sunk)' : 'var(--paper)',
-              color: viewMode === 'executive' ? 'var(--accent)' : 'var(--ink-soft)',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            🏢 Administración (Excepciones & Cuadre)
-          </button>
-        </div>
-      </div>
-
       {/* Barra de Pestañas Deslizante */}
       <div
-        role="tablist"
+        role="group"
         aria-label="Espacio de trabajo del dashboard"
         style={{
           display: 'flex',
@@ -191,12 +109,11 @@ export function DashboardViewModeTabs({
           <button
             key={t.key}
             type="button"
-            role="tab"
-            aria-selected={isActive}
-            aria-controls={`panel-${t.key}`}
+            aria-pressed={isActive}
             id={`tab-${t.key}`}
             onClick={() => {
               sound.playPop?.();
+              localStorage.setItem('preferred_job_view', t.key);
               setViewMode(t.key);
             }}
             style={{

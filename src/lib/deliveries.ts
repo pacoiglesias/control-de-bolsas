@@ -21,6 +21,29 @@ export function newDeliveryEvent(items: PurchaseOrderItem[]): Delivery {
   };
 }
 
+/** Revalidar dentro de la transacción evita sobreentregas entre dos capturas simultáneas. */
+export function assertDeliveryFitsOrder(order: PurchaseOrder, kilos: number, items?: Delivery['items']): void {
+  if (order.isDeleted || order.isClosedShort) throw new Error('La orden está cerrada o en la papelera.');
+  if (!Number.isFinite(kilos) || kilos <= 0) throw new Error('Captura kilos válidos mayores a cero.');
+  const itemTotal = (order.items ?? []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+  const ordered = itemTotal > 0 ? itemTotal : Number(order.totalKilograms) || 0;
+  const delivered = computeDeliveredTotals(order.deliveries ?? [], order.items);
+  const pending = round2(Math.max(0, ordered - delivered.kilosEntregados));
+  if (kilos > pending + 0.001) throw new Error(`Solo quedan ${pending.toLocaleString('es-MX')} kg por entregar. Actualiza la captura.`);
+  if (items) {
+    if (items.some(item => !Number.isFinite(item.quantity) || item.quantity < 0) ||
+      Math.abs(round2(items.reduce((sum, item) => sum + item.quantity, 0)) - round2(kilos)) > 0.001) {
+      throw new Error('La suma de las partidas debe coincidir con los kilos de la entrega.');
+    }
+    for (const item of items) {
+      const orderedItem = order.items?.find(candidate => candidate.id === item.itemId);
+      if (orderedItem && round2(item.quantity + (delivered.deliveredByItem[item.itemId] ?? 0)) > orderedItem.quantity + 0.001) {
+        throw new Error(`La partida ${orderedItem.description} supera sus kilos pendientes.`);
+      }
+    }
+  }
+}
+
 /** Actualiza un campo simple de una entrega (fecha, notas...). Devuelve un arreglo nuevo. */
 export function updateDeliveryField<F extends keyof Delivery>(
   deliveries: Delivery[],
@@ -59,7 +82,7 @@ export function removeDeliveryAt(
   index: number,
 ): { deliveries: Delivery[] } | { error: string } {
   const d = deliveries[index];
-  if (d?.invoiced) {
+  if (d && getDeliveryBilling(d).invoicedKilos > 0) {
     return { error: 'Esta entrega ya generó una factura. Elimina primero la factura ligada antes de borrar la entrega.' };
   }
   const next = [...deliveries];
@@ -169,11 +192,11 @@ export function computeItemInvoiceBreakdown(
             deliveredMap[matchedItem.id] = (deliveredMap[matchedItem.id] || 0) + qty;
           }
           const itemCode = matchedItem.code ? matchedItem.code.trim().toLowerCase() : null;
-          if (itemCode && itemCode !== key) {
+          if (itemCode && itemCode !== key && itemCode !== matchedItem.id) {
             deliveredMap[itemCode] = (deliveredMap[itemCode] || 0) + qty;
           }
           const itemDesc = matchedItem.description ? matchedItem.description.trim().toLowerCase() : null;
-          if (itemDesc && itemDesc !== key && itemDesc !== itemCode) {
+          if (itemDesc && itemDesc !== key && itemDesc !== itemCode && itemDesc !== matchedItem.id) {
             deliveredMap[itemDesc] = (deliveredMap[itemDesc] || 0) + qty;
           }
         }
@@ -285,30 +308,43 @@ export function linkDeliveriesToInvoice(
   invoiceId: string,
   kilosToInvoice: number,
 ): Delivery[] {
-  let remaining = kilosToInvoice;
-  return deliveries.map((d) => {
-    const dKilos =
-      d.items && d.items.length > 0
-        ? d.items.reduce((s, it) => s + (Number(it.quantity) || 0), 0)
-        : Number(d.kilos || 0);
-
-    const alreadyInvoicedKg = Number((d as any).invoicedKilos || 0);
-    const availableKg = Math.max(0, dKilos - alreadyInvoicedKg);
-
-    if (!d.invoiced && availableKg > 0 && remaining > 0.001) {
-      const portion = Math.min(availableKg, remaining);
-      remaining -= portion;
-      const newInvoicedKg = round2(alreadyInvoicedKg + portion);
-      const fullyInvoiced = newInvoicedKg >= (dKilos - 0.01);
-      return {
-        ...d,
-        invoiced: fullyInvoiced,
-        invoicedKilos: newInvoicedKg,
-        invoiceId: fullyInvoiced ? invoiceId : (d.invoiceId ? `${d.invoiceId}, ${invoiceId}` : invoiceId),
-      };
-    }
-    return d;
+  if (!invoiceId || !Number.isFinite(kilosToInvoice) || kilosToInvoice < 0) {
+    throw new Error('La factura debe tener identificador y kilos válidos.');
+  }
+  // Reemplazar la asignación previa hace que guardar dos veces sea idempotente.
+  let remaining = round2(kilosToInvoice);
+  return unmarkDeliveriesByInvoiceId(deliveries, invoiceId).map((d) => {
+    const billing = getDeliveryBilling(d);
+    const portion = round2(Math.min(billing.pendingKilos, remaining));
+    if (portion <= 0) return d;
+    remaining = round2(remaining - portion);
+    const allocations = getDeliveryAllocations(d);
+    allocations.push({ invoiceId, kilos: portion });
+    const invoicedKilos = round2(billing.invoicedKilos + portion);
+    return {
+      ...d,
+      invoiced: invoicedKilos >= billing.kilos - 0.001,
+      invoicedKilos,
+      invoiceAllocations: allocations,
+      invoiceId: [...new Set([...(d.invoiceId?.split(',').map(id => id.trim()).filter(Boolean) ?? []), invoiceId])].join(', '),
+    };
   });
+}
+
+/** Totales físicos y facturados de una entrega, compatibles con registros anteriores. */
+export function getDeliveryBilling(delivery: Delivery) {
+  const itemsKilos = (delivery.items ?? []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+  const kilos = round2(Math.max(0, itemsKilos > 0 ? itemsKilos : Number(delivery.kilos) || 0));
+  const allocated = (delivery.invoiceAllocations ?? []).reduce((sum, allocation) => sum + allocation.kilos, 0);
+  const invoicedKilos = round2(Math.min(kilos, Math.max(0,
+    delivery.invoicedKilos ?? (delivery.invoiced ? kilos : allocated), allocated)));
+  return { kilos, invoicedKilos, pendingKilos: round2(Math.max(0, kilos - invoicedKilos)) };
+}
+
+function getDeliveryAllocations(delivery: Delivery): { invoiceId: string; kilos: number }[] {
+  if (delivery.invoiceAllocations) return delivery.invoiceAllocations.map(allocation => ({ ...allocation }));
+  const ids = delivery.invoiceId?.split(',').map(id => id.trim()).filter(Boolean) ?? [];
+  return ids.length === 1 ? [{ invoiceId: ids[0], kilos: getDeliveryBilling(delivery).invoicedKilos }] : [];
 }
 
 /** Factura UNA entrega específica. */
@@ -318,15 +354,13 @@ export function buildInvoiceFromDelivery(
   orderId: string,
 ): { invoice: Invoice; updatedDelivery: Delivery; kilos: number } | { error: string } {
   if (delivery.invoiced) return { error: 'Esta entrega ya fue facturada.' };
-  const kilosDeEstaEntrega = round2(
-    (delivery.items ?? []).reduce((acc, di) => acc + (Number(di.quantity) || 0), 0) || delivery.kilos || 0,
-  );
+  const kilosDeEstaEntrega = getDeliveryBilling(delivery).pendingKilos;
   if (kilosDeEstaEntrega <= 0) {
     return { error: 'Esta entrega no tiene cantidades capturadas todavía.' };
   }
   const issue = new Date();
   const due = addDays(issue, config.creditDays);
-  const newInvoiceId = Date.now().toString();
+  const newInvoiceId = crypto.randomUUID();
   const invoice: Invoice = {
     id: newInvoiceId,
     orderId,
@@ -336,7 +370,7 @@ export function buildInvoiceFromDelivery(
     creditCycle: { status: 'pending', issueDate: Timestamp.fromDate(issue), dueDate: Timestamp.fromDate(due) },
     collection: { paidAmount: 0, contrareciboNumber: '', notes: `Entrega del ${fmtDateForNote(delivery.date)}` },
   };
-  const updatedDelivery: Delivery = { ...delivery, invoiced: true, invoiceId: newInvoiceId };
+  const updatedDelivery = linkDeliveriesToInvoice([delivery], newInvoiceId, kilosDeEstaEntrega)[0];
   return { invoice, updatedDelivery, kilos: kilosDeEstaEntrega };
 }
 
@@ -352,7 +386,24 @@ function fmtDateForNote(ts: Timestamp | null): string {
 /** Si se borra una factura, la entrega que la generó vuelve a estar disponible para facturarse. */
 export function unmarkDeliveriesByInvoiceId(deliveries: Delivery[], invoiceId: string | undefined): Delivery[] {
   if (!invoiceId) return deliveries;
-  return deliveries.map((d) => (d.invoiceId === invoiceId ? { ...d, invoiced: false, invoiceId: undefined } : d));
+  return deliveries.map((d) => {
+    const ids = d.invoiceId?.split(',').map(id => id.trim()).filter(Boolean) ?? [];
+    const allocations = getDeliveryAllocations(d);
+    const released = allocations.filter(allocation => allocation.invoiceId === invoiceId)
+      .reduce((sum, allocation) => sum + allocation.kilos, 0);
+    if (!released && !ids.includes(invoiceId)) return d;
+    if (!d.invoiceAllocations && ids.length > 1) {
+      throw new Error('Esta entrega histórica tiene varias facturas sin desglose de kilos. Revisa sus vínculos antes de modificarla.');
+    }
+    const invoicedKilos = round2(Math.max(0, getDeliveryBilling(d).invoicedKilos - released));
+    return {
+      ...d,
+      invoiced: invoicedKilos > 0 && invoicedKilos >= getDeliveryBilling(d).kilos - 0.001,
+      invoicedKilos,
+      invoiceAllocations: allocations.filter(allocation => allocation.invoiceId !== invoiceId),
+      invoiceId: ids.filter(id => id !== invoiceId).join(', ') || undefined,
+    };
+  });
 }
 
 /** Migra expedientes sin eventos de entrega. */

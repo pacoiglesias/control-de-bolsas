@@ -1,12 +1,12 @@
 import type { NavigateFunction } from 'react-router-dom';
 import { PriorityActionQueue } from '../PriorityActionQueue';
-import { ExecutivePriorityAlerts } from '../ExecutivePriorityAlerts';
 import { CashFlowSimulatorWidget } from '../CashFlowSimulatorWidget';
 import { ExecutiveFinancialCard } from '../ExecutiveFinancialCard';
 import { ActiveOrdersMobileCards } from '../ActiveOrdersMobileCards';
 import { MoneyFlowPipeline, type PipelineStageKey } from '../MoneyFlowPipeline';
 import { SeguimientoPedidosTable } from '../SeguimientoPedidosTable';
 import type { PurchaseOrder, Expense, FinancialConfig } from '../../../lib/types';
+import { useAuth } from '../../../context/AuthContext';
 
 interface DashboardExecutiveViewProps {
   seguimientoOrders: PurchaseOrder[];
@@ -35,8 +35,15 @@ export function DashboardExecutiveView({
   onOpenQuickDelivery,
   onOpenUniversalUpload: _onOpenUniversalUpload,
 }: DashboardExecutiveViewProps) {
+  const { role } = useAuth();
+  const canOperate = role === 'admin' || role === 'manager';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {canOperate && <nav className="work-shortcuts" aria-label="Acciones de operación diaria">
+        <button type="button" onClick={() => onOpenQuickDelivery()}><span>01</span><div><strong>Registrar entrega</strong><small>Captura kilos y remisión</small></div></button>
+        <button type="button" onClick={() => onOpenQuickInvoice()}><span>02</span><div><strong>Registrar factura</strong><small>Vincula folio y entregas</small></div></button>
+        <button type="button" onClick={onOpenQuickCollection}><span>03</span><div><strong>Registrar cobro</strong><small>Revisa pagos y saldos</small></div></button>
+      </nav>}
       {/* 0. Centro Operativo Unificado: Qué Requiere Atención Hoy */}
       <PriorityActionQueue
         orders={seguimientoOrders}
@@ -44,27 +51,6 @@ export function DashboardExecutiveView({
         onOpenQuickInvoice={onOpenQuickInvoice}
         onOpenQuickCollection={onOpenQuickCollection}
         onOpenQuickDelivery={onOpenQuickDelivery}
-      />
-
-      {/* 1. Radar Ejecutivo de OCs Oficiales (TH Nava 8,000 kg & GT Evelia 5,100 kg) */}
-      <ExecutivePriorityAlerts
-        orders={seguimientoOrders}
-        config={config}
-        onOpenQuickInvoice={onOpenQuickInvoice}
-        onOpenQuickCollection={onOpenQuickCollection}
-      />
-
-      {/* 1.5 Simulador de Flujo Semanal & Capacidad de Compra */}
-      <CashFlowSimulatorWidget
-        orders={seguimientoOrders}
-        config={config}
-      />
-
-      {/* 2. Tarjeta Financiera Ejecutiva y Resumen P&L */}
-      <ExecutiveFinancialCard
-        orders={seguimientoOrders}
-        config={config as any}
-        saldoCaja={saldoCaja}
       />
 
       {/* 2. Vista Móvil de Tarjetas de OCs Activas con Acciones Directas */}
@@ -97,6 +83,13 @@ export function DashboardExecutiveView({
         onQuickInvoice={() => onOpenQuickInvoice(null)}
         onQuickCollection={onOpenQuickCollection}
       />
+      <details className="work-details">
+        <summary>Consultar finanzas y simular compras</summary>
+        <div>
+          <ExecutiveFinancialCard orders={seguimientoOrders} config={config} saldoCaja={saldoCaja} />
+          <CashFlowSimulatorWidget orders={seguimientoOrders} config={config} />
+        </div>
+      </details>
     </div>
   );
 }
