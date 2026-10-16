@@ -89,6 +89,14 @@ export const sanitizePurchaseOrder = onDocumentWritten(
     let modified = false;
 
     const sanitizedInvoices = invoices.map((inv: any) => {
+      if (inv.reconciliation?.version && Number(inv.financials?.invoiceTotal)>0) {
+        const subtotal=Number(inv.financials.saleTotal);
+        const commission=round2(subtotal*Number(inv.financials.commissionRate??cfg.commissionRate));
+        const corrected={...inv.financials,commission,
+          netCashFlow:inv.financials.isEstimatedCost?0:round2(inv.financials.invoiceTotal-Number(inv.financials.costTotal||0)-commission)};
+        if(JSON.stringify(corrected)!==JSON.stringify(inv.financials))modified=true;
+        return {...inv,financials:corrected};
+      }
       const kilos = Number(inv.kilos) || 0;
       const baseFin = computeFinancials(kilos, cfg);
 

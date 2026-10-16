@@ -6,6 +6,11 @@ export { LATEST_RELEASE };
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   LATEST_RELEASE,
   {
+    version:'v9.14.0: Documentos del portal y captura guiada',date:'15 de Octubre de 2026',time:'',
+    summary:'Lectura de listados del portal y complementos de pago con sus filas y pendientes de captura.',
+    highlights:['Conservación de originales y evidencia estructurada para conciliación.'],
+  },
+  {
  version: 'v9.13.1: Captura pendiente y avance real', date: '15 de Octubre de 2026', time: '',
  summary: 'Los documentos señalan los datos faltantes. Una OC nueva muestra cero entregado y facturado hasta capturar los documentos reales.',
  highlights: ['Aviso de facturas faltantes por folio y contrarrecibo al importar pagos.', 'Cerrar un documento sin aplicar se informa como pendiente, nunca como duplicado.', 'La OC no genera una factura por tener folio. Los próximos pasos dependen de entregas, facturas, contrarrecibos y cobros capturados.'],

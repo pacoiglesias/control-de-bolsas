@@ -27,9 +27,9 @@ const KIND_FILTERS: { value: StoredDocKind | 'all'; label: string; icon: string 
   { value: 'all',              label: 'Todos',            icon: '📁' },
   { value: 'oc_providencia',   label: 'Órdenes de Compra', icon: '📋' },
   { value: 'factura_cfdi',     label: 'Facturas CFDI',    icon: '🧾' },
-  { value: 'pago_providencia', label: 'Pagos TR',         icon: '💵' },
+  { value: 'pago_providencia', label: 'Pagos y complementos', icon: '💵' },
   { value: 'ticket_bascula',   label: 'Tickets Báscula',  icon: '⚖️' },
-  { value: 'contrarecibo',     label: 'Contrarecibos',    icon: '📑' },
+  { value: 'contrarecibo',     label: 'Portal y contrarrecibos', icon: '📑' },
   { value: 'remision',         label: 'Remisiones',       icon: '🚚' },
 ];
 
@@ -486,7 +486,7 @@ export function DocumentsArchive() {
                           letterSpacing: '0.4px',
                         }}
                       >
-                        {docKindLabel(d.docKind)}
+                        {d.evidence?.title || docKindLabel(d.docKind)}
                       </span>
                       {d.orderFolio && (
                         <span

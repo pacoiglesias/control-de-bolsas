@@ -138,11 +138,12 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
 
     // 🌟 CORTE CANÓNICO OFICIAL (2026-09-02): Todos los registros anteriores
     // ya están liquidados y consolidados en el saldo canónico de +$103,411.84.
-    const CUT_TIMESTAMP = new Date('2026-09-02T00:00:00Z').getTime();
+    const CUT_TIMESTAMP = new Date(configSnap.data()?.providerBalanceCutoff || '2026-09-02T00:00:00Z').getTime();
 
     const provPurchases = purchasesSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter((p: any) => {
+        if(p.isDeleted || p.isSuperseded)return false;
         if (!esAndres(p.provider)) return false;
         const ms = getMillis(p.date || p.createdAt);
         return ms >= CUT_TIMESTAMP;
@@ -169,6 +170,7 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
     const provExpenses = expensesSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter((e: any) => {
+        if(e.isDeleted || e.isSuperseded)return false;
         const isAndres = esAndres(e.provider) || e.isAndresPayment === true;
         if (!isAndres) return false;
         const ms = getMillis(e.date || e.createdAt);
@@ -203,7 +205,7 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
     const andresBalance = computeAndresBalance(
       provPurchases as any[],
       provExpenses as any[],
-      { costPricePerKg, historicalDebtAndres },
+      { costPricePerKg, historicalDebtAndres,providerBalanceCutoff:configSnap.data()?.providerBalanceCutoff },
       "andres",
     );
     const { totalReceivedKilos, totalPurchasesCost, totalPagado, saldoProveedor } = andresBalance;
@@ -300,10 +302,10 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
   const activeOrders: any[] = [];
   snapshot.docs.forEach((doc) => {
     const data = doc.data();
-    if (data.isArchived || data.isDeleted || data.isClosedShort) return;
+    if (data.isArchived || data.isDeleted || data.isSuperseded || data.isClosedShort || data.productionTrackingEnabled===false) return;
 
-    const deliveries = data.deliveries || [];
-    const totalDelivered = deliveries.reduce((acc: number, d: any) => acc + (Number(d.kilos) || 0), 0);
+    const deliveries = (data.deliveries || []).filter((d:any)=>!d.inferredFromInvoice);
+    const totalDelivered = deliveries.reduce((acc: number, d: any) => acc + ((d.items||[]).reduce((s:number,i:any)=>s+(Number(i.quantity)||0),0) || Number(d.kilos) || 0), 0);
     const totalKilos = Number(data.totalKilograms) || (data.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0);
     const pendingKilos = Math.max(0, Math.round((totalKilos - totalDelivered) * 100) / 100);
 
@@ -316,6 +318,8 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
         id: doc.id,
         orderId: doc.id,
         folio: data.folio || data.oc || "Sin Folio",
+        orderDocumentPending:Boolean(data.orderDocumentPending),
+        physicalEvidencePending:(data.deliveries||[]).some((d:any)=>d.inferredFromInvoice),
         productDescription: data.productDescription || (data.items && data.items[0]?.description) || "Bolsa de Polietileno",
         department: dept,
         client: data.client || (dept === 'GT' ? 'Grupo Textil Providencia (GT - Evelia / P4)' : 'Textil Hogar (TH - Nava)'),
@@ -328,7 +332,7 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
           quantity: Number(it.quantity) || 0,
           unit: it.unit || 'kg',
         })),
-        deliveries: (data.deliveries || []).map((d: any) => ({
+        deliveries: deliveries.map((d: any) => ({
           id: d.id,
           date: d.date,
           kilos: Number(d.kilos) || 0,

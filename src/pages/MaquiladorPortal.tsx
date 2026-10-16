@@ -149,17 +149,13 @@ export default function MaquiladorPortal() {
     }
   }, [isOnline, pin, syncOfflineQueue]);
 
-  // Cargar historial guardado (filtrando folios obsoletos de prueba como 120267114014)
+  // Keep local delivery history; an order number never identifies a disposable record.
   const [historial, setHistorial] = useState<MaquilaDelivery[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_DELIVERIES_KEY);
       const list = saved ? JSON.parse(saved) : [];
       if (Array.isArray(list)) {
-        const filtered = list.filter((h) => h?.folio !== '120267114014' && h?.orderId !== 'oc-120267114014');
-        if (filtered.length !== list.length) {
-          localStorage.setItem(STORAGE_DELIVERIES_KEY, JSON.stringify(filtered));
-        }
-        return filtered;
+        return list;
       }
       return [];
     } catch {
@@ -597,11 +593,10 @@ export default function MaquiladorPortal() {
             <span style={{ fontSize: 24 }}>🟡</span>
             <div>
               <div style={{ fontSize: 14, fontWeight: 900, color: '#fbbf24' }}>
-                PRODUCCIÓN EN CURSO: {totalAndresPendingKilos.toLocaleString('es-MX')} kg PENDIENTES
+                {totalAndresPendingKilos.toLocaleString('es-MX')} kg por entregar o comprobar
               </div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>
-                Tienes {activeOrders.filter((o: any) => o.pendingKilos > 0).length} órdenes con kilos pendientes por
-                fabricar y entregar a Providencia.
+                {activeOrders.filter((o: any) => o.pendingKilos > 0).length} órdenes en seguimiento. El avance físico se acredita con las entregas registradas.
               </div>
             </div>
           </div>

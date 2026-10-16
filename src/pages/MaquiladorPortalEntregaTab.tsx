@@ -77,6 +77,7 @@ export default function MaquiladorPortalEntregaTab({
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{...glass,padding:'18px 20px'}}><strong style={{fontSize:18}}>Registra tu entrega en 3 pasos</strong><p style={{margin:'8px 0 0',color:'#cbd5e1',lineHeight:1.6}}>1. Elige la orden · 2. Captura kilos y folio · 3. Confirma la entrega.</p></div>
       {/* Filtros de Departamento y Buscador */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -155,6 +156,7 @@ export default function MaquiladorPortalEntregaTab({
                 setOrderId(sel ? '' : o.orderId);
                 setKilos('');
               }}
+              aria-pressed={sel}
               style={{
                 width: '100%',
                 textAlign: 'left',
@@ -223,7 +225,10 @@ export default function MaquiladorPortalEntregaTab({
               </div>
 
               {/* DESGLOSE DETALLADO DE PARTIDAS Y TIPOS DE PRODUCTO DE LA OC */}
-              {Array.isArray(o.items) && o.items.length > 0 && (
+              {o.orderDocumentPending && <p style={{color:'#fde68a',lineHeight:1.5,margin:'12px 0 0'}}>Falta la OC original con sus partidas. Verifica el producto antes de registrar la entrega.</p>}
+              {o.physicalEvidencePending && <p style={{color:'#cbd5e1',lineHeight:1.5,margin:'10px 0 0'}}>Hay facturas registradas; faltan remisiones para comprobar el avance físico.</p>}
+              {!sel && o.items?.length>0 && <p style={{color:'#cbd5e1',fontSize:12,margin:'10px 0 0'}}>{o.items.length} productos · Selecciona para ver las cantidades</p>}
+              {sel && Array.isArray(o.items) && o.items.length > 0 && (
                 <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px dashed rgba(255,255,255,0.15)', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
                     <span>📦 Partidas / Tipos de Producto ({o.items.length}):</span>
@@ -261,7 +266,7 @@ export default function MaquiladorPortalEntregaTab({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontSize: 14, color: '#a78bfa', fontWeight: 800 }}>
-                ✅ Reportar Entrega para OC {selectedOrder.folio}
+                2. Datos de entrega · OC {selectedOrder.folio}
               </div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>
                 {selectedOrder.productDescription} · Pendientes:{' '}
@@ -706,7 +711,7 @@ export default function MaquiladorPortalEntregaTab({
               ? '🚫 Excede los kilos pendientes de la OC' 
               : saving 
                 ? '⏳ Guardando entrega...' 
-                : `✅ Confirmar Entrega de ${numKilos > 0 ? numKilos : ''} kg`}
+                : numKilos>0 ? `3. Confirmar ${numKilos.toLocaleString('es-MX')} kg · OC ${selectedOrder.folio}` : 'Captura los kilos para continuar'}
           </motion.button>
         </motion.form>
       )}

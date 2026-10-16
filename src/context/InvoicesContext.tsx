@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { collection, onSnapshot, query, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db, PATHS } from '../lib/firebase';
 import { toDate } from '../lib/format';
 import type { Invoice } from '../lib/types';
@@ -21,7 +21,7 @@ export function InvoicesProvider({ children }: { children: ReactNode }) {
     // Al igual que OrdersContext, ordenamos en el cliente para evitar
     // exclusiones silenciosas por falta de campos en documentos viejos.
     // Asumimos que PATHS.invoices será 'invoices'.
-    const q = query(collection(db, PATHS.invoices), limit(1000));
+    const q = query(collection(db, PATHS.invoices));
     let initialLoad = true;
     const unsub = onSnapshot(
       q,
@@ -33,8 +33,8 @@ export function InvoicesProvider({ children }: { children: ReactNode }) {
         initialLoad = false;
 
         const docs = snap.docs
-          .map((d) => ({ id: d.id, ...(d.data() as Omit<Invoice, 'id'>) }))
-          .filter((inv) => inv.creditCycle?.status !== 'collected');
+          .filter(d=>!d.data().isDeleted && !d.data().isSuperseded)
+          .map((d) => ({ ...(d.data() as Omit<Invoice, 'id'>), id: d.id }));
           
         docs.sort((a, b) => {
           const ta = toDate(a.createdAt)?.getTime() ?? 0;

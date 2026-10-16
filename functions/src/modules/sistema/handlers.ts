@@ -91,19 +91,26 @@ export const updateCajaChicaBalance = onDocumentWritten(
     if (!before && !after) return;
 
     let amountBefore = 0;
-    if (before) {
+    if (before && !before.isDeleted) {
       amountBefore = before.type === "ingreso" ? (before.amount || 0) : -(before.amount || 0);
     }
 
     let amountAfter = 0;
-    if (after) {
+    if (after && !after.isDeleted) {
       amountAfter = after.type === "ingreso" ? (after.amount || 0) : -(after.amount || 0);
     }
 
-    const delta = amountAfter - amountBefore;
+    const delta = Math.round((amountAfter - amountBefore)*100)/100;
     if (delta !== 0) {
-      const ref = getFirestore().doc("system_settings_private/finanzas");
-      await ref.set({ cajaChicaBalance: FieldValue.increment(delta) }, { merge: true });
+      const db=getFirestore();
+      const ref = db.doc("system_settings_private/finanzas");
+      const eventRef=db.doc('processedCashEvents/'+encodeURIComponent(event.id));
+      await db.runTransaction(async txn=>{
+        const previous=await txn.get(eventRef);
+        if(previous.exists)return;
+        txn.set(ref,{cajaChicaBalance:FieldValue.increment(delta)},{merge:true});
+        txn.create(eventRef,{eventId:event.id,expenseId:event.params.expenseId,delta,processedAt:FieldValue.serverTimestamp()});
+      });
       logger.info(`Caja Chica updated by ${delta}`);
     }
   },

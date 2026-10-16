@@ -4,7 +4,7 @@ import { parseScaleTicket } from '../scaleTicketParser';
 import { parseProvidenciaPaymentPdf } from '../providenciaPortalParser';
 import { findExactPurchaseOrder, planProvidenciaPayment, purchaseOrderFromText } from '../providenciaImport';
 import { applyProvidenciaPayment } from '../providenciaPaymentApply';
-import { analyzeDocumentFast, applyDocumentFast } from '../autoDocumentPipeline';
+import { analyzeDocumentFast, applyDocumentFast,matchOrderCanonical } from '../autoDocumentPipeline';
 import type { PurchaseOrder } from '../types';
 import { getOrderSummary } from '../finance';
 import { buildOperationalTasks } from '../operationalTasks';
@@ -13,6 +13,7 @@ import { uploadDocument } from '../documentStorage';
 const state = vi.hoisted(() => ({ text: '', docs: new Map<string, any>(), writes: [] as any[] }));
 vi.mock('../firebase', () => ({ auth: { currentUser: { uid: 'test-admin', email: 'admin@example.test' } }, db: {}, PATHS: { orders: 'orders', invoices: 'invoices' } }));
 vi.mock('../documentStorage', () => ({ uploadDocument: vi.fn().mockResolvedValue({}) }));
+vi.mock('../applyProvidenciaReconciliation',()=>({applyStoredProvidenciaReconciliation:vi.fn().mockResolvedValue(null)}));
 vi.mock('../logger', () => ({ logAction: vi.fn(), logMandatoryAction: vi.fn() }));
 vi.mock('../safeFirestore', () => ({ safeUpdateDoc: vi.fn(), safeAddDoc: vi.fn() }));
 vi.mock('../ocr', async () => ({ ...await vi.importActual<any>('../ocr'), extractTextFromPdf: vi.fn(async () => state.text) }));
@@ -86,11 +87,27 @@ it('clasifica la OC antes de remisiones y conserva siete partidas, TH, 9500 kg y
 });
 it('rechaza una OC cuyo subtotal no corresponde a sus partidas', () => { expect(() => purchaseOrderFromText(oc.replace('SubTotal 418,000.0000','SubTotal 419,000.0000'))).toThrow(); });
 it('una nueva OC con igual importe no se asigna a otra orden', () => { expect(findExactPurchaseOrder([{ id:'old', oc:'120267114302', folio:'71/14302' }], '120267114400','71/14400')).toBeNull(); });
+it('la asociación no sustituye una OC explícita ni elige la primera coincidencia ambigua',()=>{
+  const records=[{id:'blank'},{id:'old',oc:'120267114302',invoices:[{id:'i',folio:'9',financials:{invoiceTotal:116}}]},{id:'other',oc:'12026439784',invoices:[{id:'j',folio:'9',financials:{invoiceTotal:116}}]}] as PurchaseOrder[];
+  expect(matchOrderCanonical(records,'120267114400','',116)).toBeNull();
+  expect(matchOrderCanonical(records,'','9',116)).toBeNull();
+  expect(matchOrderCanonical(records,'120267114302')?.id).toBe('old');
+});
 it('el pipeline crea la OC nueva con su folio original y es idempotente', async () => {
   state.text=oc; const file=new File(['OC'], 'OC.pdf', { type:'application/pdf' });
   const analysis=await analyzeDocumentFast(file, []); expect(analysis.docType).toBe('oc_providencia'); expect(analysis.needsClarification).toBe(false);
   await applyDocumentFast(analysis,null,[]); expect(state.docs.get('orders/oc-120267114400').customSellPrice).toBe(44);
   expect((await applyDocumentFast(analysis,null,[])).isDuplicate).toBe(true);
+});
+it('el original de una OC completa partidas pendientes conservando facturas y entregas',async()=>{
+  state.text=oc;
+  state.docs.set('orders/oc-120267114400',{oc:'120267114400',orderDocumentPending:true,invoices:[{id:'previous'}],deliveries:[{id:'physical',kilos:10}]});
+  const analysis=await analyzeDocumentFast(new File(['OC'],'OC.pdf',{type:'application/pdf'}),[]);
+  const result=await applyDocumentFast(analysis,null,[]);
+  expect(result.isDuplicate).toBe(false);
+  const completed=state.docs.get('orders/oc-120267114400');
+  expect(completed.items).toHaveLength(7);expect(completed.orderDocumentPending).toBe(false);
+  expect(completed.invoices).toEqual([{id:'previous'}]);expect(completed.deliveries).toEqual([{id:'physical',kilos:10}]);
 });
 it('extrae todas las filas del pago y la fecha real, no la fecha de impresión', () => {
   expect(payment().amount).toBe(98912.04); expect(payment().allocations?.map(row => [row.facturaFolio,row.amount,row.paymentDate])).toEqual([['6193',49880,'13/10/2026'],['6224',49032.04,'13/10/2026']]);
@@ -102,7 +119,9 @@ it('impide aplicar el pago si hay diferencias en el encabezado o faltan facturas
 it('aplica las dos facturas y sus espejos de cobranza en una transacción', async () => {
   const result=await applyProvidenciaPayment(payment(),orders()); expect(result.appliedRows).toBe(2);
   expect(state.docs.get('orders/o0').invoices[0].collection.paidAmount).toBe(49880); expect(state.docs.get('orders/o1').invoices[0].collection.paidAmount).toBe(49032.04);
-  expect(state.docs.get('invoices/i1').creditCycle.status).toBe('collected'); expect(state.writes.filter(write => write.path.startsWith('payment_receipts/'))).toHaveLength(2);
+  expect(state.docs.get('invoices/i1').creditCycle.status).toBe('paid');
+  expect(state.docs.get('invoices/i1').collection.collectedAt).toBeUndefined();
+  expect(state.writes.filter(write => write.path.startsWith('payment_receipts/'))).toHaveLength(2);
 });
 it('reimportar el mismo TR no duplica abonos', async () => {
   await applyProvidenciaPayment(payment(),orders()); state.writes=[];

@@ -1,6 +1,8 @@
 import { findExactPurchaseOrder, purchaseOrderFromText, planProvidenciaPayment } from './providenciaImport';
 import { applyProvidenciaPayment } from './providenciaPaymentApply';
 import { parseProvidenciaEvidence, evidenceRequirements, type ProvidenciaEvidence } from './providenciaEvidence';
+import { applyStoredProvidenciaReconciliation } from './applyProvidenciaReconciliation';
+import { enrichPortalInvoice } from './enrichPortalInvoice';
 import { parseOrdenDeCompra } from './ocParser';
 import type { ParsedProvidenciaPaymentData } from './providenciaPortalParser';
 /**
@@ -19,7 +21,7 @@ import type { ParsedProvidenciaPaymentData } from './providenciaPortalParser';
  */
 
 import { Timestamp, doc, serverTimestamp, runTransaction, writeBatch } from 'firebase/firestore';
-import { db, PATHS } from './firebase';
+import { auth, db, PATHS } from './firebase';
 import { safeUpdateDoc } from './safeFirestore';
 import { cleanUndefined } from './cleanUndefined';
 import { uploadDocument } from './documentStorage';
@@ -29,9 +31,8 @@ import { extractTextFromPdf, extractTextFromImage, parseOcrData } from './ocr';
 import { parseScaleTicket } from './scaleTicketParser';
 import { parseProvidenciaPaymentPdf } from './providenciaPortalParser';
 import { parseBankTransferReceipt } from './bankReceiptParser';
-import { OC_TH_ACTIVE, OC_GT_ACTIVE } from './constants';
 import { round2 } from './finance';
-import type { PurchaseOrder, Invoice, Delivery } from './types';
+import type { PurchaseOrder, Invoice, Delivery, PurchaseOrderItem } from './types';
 
 export function normalizeInvoiceFolio(folio?: string): string {
   if (!folio) return '';
@@ -106,6 +107,8 @@ export type PipelineDocType =
   | 'desconocido';
 
 export interface PipelineAnalysis {
+  canEnrichInvoice?: boolean;
+  invoiceItems?: PurchaseOrderItem[];
   evidence?: ProvidenciaEvidence;
   file: File;
   docType: PipelineDocType;
@@ -194,7 +197,7 @@ export function matchOrderCanonical(
   orders: PurchaseOrder[],
   ocCandidate?: string,
   folioCandidate?: string,
-  amountCandidate?: number,
+  _amountCandidate?: number,
   crCandidate?: string
 ): PurchaseOrder | null {
   if (!orders || orders.length === 0) return null;
@@ -203,64 +206,19 @@ export function matchOrderCanonical(
   const cleanFolio = (folioCandidate || '').trim().toUpperCase();
   const cleanCr = (crCandidate || '').trim().toUpperCase();
 
-  // 1. Detección Canónica Oficial Directa
-  let found = orders.find((o) => {
-    if (!o || (o as any).isDeleted) return false;
-    const oOc = (o.oc || o.folio || o.id || '').replace(/[^0-9]/g, '');
-    if (cleanOc && cleanOc.length >= 4 && (oOc.includes(cleanOc) || cleanOc.includes(oOc))) return true;
-
-    // Alias canónicos oficiales TH (120267114302 · 71/14302)
-    if (
-      (cleanOc.includes('14302') || cleanOc.includes('67114302') || cleanOc.includes('114099')) &&
-      (o.oc === OC_TH_ACTIVE || oOc.includes('14302') || (o.folio || '').includes('14302'))
-    ) {
-      return true;
-    }
-
-    // Alias canónicos oficiales GT (12026439784 · 43/9784)
-    if (
-      (cleanOc.includes('9784') || cleanOc.includes('6439784') || cleanOc.includes('439784')) &&
-      (o.oc === OC_GT_ACTIVE || oOc.includes('9784') || (o.folio || '').includes('9784'))
-    ) {
-      return true;
-    }
-
-    // OCs históricas finiquitadas
-    if (cleanOc.includes('9713') && (o.oc?.includes('9713') || o.folio?.includes('9713'))) return true;
-    if (cleanOc.includes('14114') && (o.oc?.includes('14114') || o.folio?.includes('14114'))) return true;
-    return false;
-  });
-
-  // 2. Coincidencia por Folio de factura registrada previamente
-  if (!found && cleanFolio) {
-    found = orders.find((o) => {
-      if (!o || (o as any).isDeleted) return false;
-      return o.folio === cleanFolio || (o.invoices || []).some((i) => i.folio === cleanFolio);
-    });
+  const visible=orders.filter(o=>o && !o.isDeleted && !(o as any).isSuperseded);
+  const digits=(value?:string)=>(value||'').replace(/\D/g,'');
+  if(cleanOc.length>=4) {
+    const exact=visible.filter(o=>digits(o.oc)===cleanOc || digits(o.folio)===cleanOc);
+    if(exact.length)return exact.length===1?exact[0]:null;
+    const short=visible.filter(o=>!!o.oc && cleanOc.length<10 && digits(o.oc).endsWith(cleanOc));
+    if(short.length)return short.length===1?short[0]:null;
+    // An explicit OC that is absent must never be replaced by a same-amount order.
+    return null;
   }
-
-  // 3. Coincidencia por Contrarecibo
-  if (!found && cleanCr) {
-    found = orders.find((o) => {
-      if (!o || (o as any).isDeleted) return false;
-      return (
-        o.collection?.contrareciboNumber === cleanCr ||
-        (o.invoices || []).some((i) => i.collection?.contrareciboNumber === cleanCr)
-      );
-    });
-  }
-
-  // 4. Coincidencia por Importe exacto en facturas existentes
-  if (!found && amountCandidate && amountCandidate > 0) {
-    found = orders.find((o) => {
-      if (!o || (o as any).isDeleted) return false;
-      return (o.invoices || []).some(
-        (i) => Math.abs((i.financials?.invoiceTotal || 0) - amountCandidate) < 1
-      );
-    });
-  }
-
-  return found || null;
+  const matches=visible.filter(o=>(cleanFolio && ((o.folio||'').toUpperCase()===cleanFolio || (o.invoices||[]).some(i=>(i.folio||'').toUpperCase()===cleanFolio))) ||
+    (cleanCr && (o.collection?.contrareciboNumber===cleanCr || (o.invoices||[]).some(i=>i.collection?.contrareciboNumber===cleanCr))));
+  return matches.length===1?matches[0]:null;
 }
 
 /**
@@ -568,6 +526,7 @@ export async function analyzeDocumentFast(
   let facturaFolios: string[] = [];
   let dueDate = '';
   let paymentDetail: ParsedProvidenciaPaymentData | undefined;
+  let invoiceItems:PurchaseOrderItem[]|undefined;
 
   try {
     // 1. CASO XML CFDI
@@ -576,6 +535,9 @@ export async function analyzeDocumentFast(
       rawText = text;
       const parsed = parseXmlInvoice(text);
       if (parsed) {
+        if(parsed.tipoComprobante!=='I')throw new Error('Este XML no es una factura de ingreso. Revisa su tipo de comprobante.');
+        if(parsed.conceptos.some(c=>c.claveUnidad!=='KGM'))throw new Error('El XML incluye unidades distintas de kilos; requiere revisión antes de aplicar.');
+        invoiceItems=parsed.conceptos.map((c,index)=>({id:'xml-'+index,code:c.codigo,description:c.descripcion,quantity:c.cantidad,unit:'KGM',unitPrice:c.valorUnitario,amount:c.importe}));
         docType = 'factura_cfdi';
         confidence = 'alta';
         folio = parsed.folio || '';
@@ -790,13 +752,16 @@ export async function analyzeDocumentFast(
 
   const isSuspectDuplicate = !!dupCheck.isSuspectDuplicate;
   const hasFolioCollision = !!dupCheck.hasFolioCollision;
+  const canEnrichInvoice=docType==='factura_cfdi' && !!uuid && !!(dupCheck.invoice as any)?.reconciliation?.version && (!dupCheck.invoice?.uuid || !!(dupCheck.invoice as any)?.quantityPending);
 
   if (dupCheck.isDuplicate && !matchedOrder && dupCheck.order) {
     matchedOrder = dupCheck.order;
   }
 
   let autoAssignedLabel: string | null = null;
-  if (dupCheck.isDuplicate) {
+  if (canEnrichInvoice) {
+    autoAssignedLabel='Completar detalle fiscal de factura '+folio+'; conservar pagos y contrarrecibo.';
+  } else if (dupCheck.isDuplicate) {
     autoAssignedLabel = `⚠️ YA REGISTRADO: Omitido para evitar duplicar (${dupCheck.order?.folio || dupCheck.order?.oc || 'Expediente'})`;
   } else if (isSuspectDuplicate) {
     autoAssignedLabel = `⚠️ COINCIDENCIA SOSPECHOSA: ${dupCheck.reason || 'Pesaje similar en báscula requiere revisión'}`;
@@ -839,7 +804,8 @@ export async function analyzeDocumentFast(
     fileContentSha256: contentHash,
     matchedOrder,
     autoAssignedLabel: paymentPlan ? (paymentPlan.errors.join(" ") || `${paymentDetail!.transferRef}: ${paymentPlan.targets.length} facturas identificadas · ${total.toFixed(2)}`) : autoAssignedLabel,
-    isDuplicate: paymentPlan ? false : dupCheck.isDuplicate,
+    invoiceItems,canEnrichInvoice,
+    isDuplicate: paymentPlan || canEnrichInvoice ? false : dupCheck.isDuplicate,
     duplicateOrder: dupCheck.order,
     isSuspectDuplicate,
     hasFolioCollision,
@@ -943,8 +909,9 @@ export async function applyDocumentFast(
         folio: evidence.folio || evidence.title, kilos: 0, total: evidence.total, docDate: analysis.docDate,
         documentId: analysis.fileContentSha256 ? 'evidence-'+analysis.fileContentSha256 : undefined, evidence,
         notes: `${evidence.title}: ${evidence.receipts.length || evidence.invoices.length || evidence.allocations.length} filas registradas. ${missing.join(' ')}` });
+      const reconciled=await applyStoredProvidenciaReconciliation();
       return { success: true, docType: analysis.docType, folio: analysis.folio, kilos: 0, total: analysis.total,
-        message: `${evidence.title} registrado con ${evidence.receipts.length || evidence.invoices.length || evidence.allocations.length} filas. ${missing.length} pendientes de captura o conciliación en Documentos. No se duplicaron cobros ni se crearon facturas sin soporte.` };
+        message: reconciled ? `${evidence.title} aplicado. ${reconciled.invoiceCount} facturas conciliadas; saldo real por cobrar $${reconciled.balance.toFixed(2)}.` : `${evidence.title} registrado. Falta el panel de facturas para aplicar sus asociaciones y saldos.` };
     }
     if (analysis.paymentDetail) {
       try {
@@ -958,6 +925,27 @@ export async function applyDocumentFast(
       }
     }
 
+    // Fiscal details enrich a portal invoice rather than becoming a second sale.
+    if(analysis.docType==='factura_cfdi' && (analysis.canEnrichInvoice || analysis.isDuplicate) && analysis.uuid) {
+      const order=analysis.duplicateOrder||targetOrder;
+      const original=order?.invoices?.find(i=>normalizeInvoiceFolio(i.folio)===normalizeInvoiceFolio(analysis.folio));
+      if(order && original && (original as any).reconciliation?.version) {
+        await runTransaction(db,async txn=>{
+          const ref=doc(db,PATHS.orders,order.id);const fresh=await txn.get(ref);
+          const data=fresh.data();if(!data || data.isDeleted)throw new Error('La orden ya no está disponible.');
+          const invoices=(data.invoices||[]) as Invoice[];const index=invoices.findIndex(i=>i.id===original.id);
+          if(index<0)throw new Error('La factura cambió. Vuelve a revisar el documento.');
+          const completed=enrichPortalInvoice(invoices[index],{uuid:analysis.uuid!,total:analysis.total,subtotal:analysis.subtotal,items:analysis.invoiceItems});
+          const before=invoices[index];invoices[index]=completed;
+          txn.update(ref,{invoices:cleanUndefined(invoices),updatedAt:serverTimestamp()});
+          txn.set(doc(db,PATHS.invoices,completed.id),cleanUndefined(completed),{merge:true});
+          txn.set(doc(db,'history','fiscal-details-'+completed.id+'-'+Date.now()),cleanUndefined({userId:auth.currentUser?.uid,action:'PORTAL_INVOICE_DETAILS',createdAt:serverTimestamp(),orderId:order.id,invoiceId:completed.id,fileSha256:analysis.fileContentSha256,before,after:completed}));
+        });
+        let storageWarning=false;
+        try{await uploadDocument({file:analysis.file,docKind:'factura_cfdi',folio:analysis.folio,orderId:order.id,ocNumber:order.oc,kilos:analysis.kilos,total:analysis.total,docDate:analysis.docDate,notes:'Detalle fiscal vinculado a factura existente; conserva sus pagos.'});}catch{storageWarning=true;}
+        return {success:true,storageWarning,docType:analysis.docType,folio:analysis.folio,kilos:analysis.kilos,total:analysis.total,orderId:order.id,message:'Factura '+analysis.folio+' completada. Se conservaron sus pagos y contrarrecibo; no se duplicó la venta.'};
+      }
+    }
     // 1. Manejo universal de duplicados absolutos comprobados
   if (analysis.isDuplicate) {
     const ordTarget = analysis.duplicateOrder || targetOrder;
@@ -1034,18 +1022,27 @@ export async function applyDocumentFast(
     const existing = findExactPurchaseOrder(allOrdersContext || [], data.oc!, data.folio!);
     const orderId = existing?.id || 'oc-' + data.oc;
     const ref = doc(db, PATHS.orders, orderId);
-    const duplicate = await runTransaction(db, async txn => {
+    const outcome = await runTransaction(db, async txn => {
       const snapshot = await txn.get(ref);
-      if (snapshot.exists()) return true;
+      if (snapshot.exists()) {
+        const current=snapshot.data();
+        if(current.oc && current.oc!==data.oc)throw new Error('La identidad de la OC guardada no coincide con el documento.');
+        if(!current.orderDocumentPending && current.items?.length && !current.isDeleted)return 'duplicate';
+        const details={...data};
+        delete details.invoices;delete details.deliveries;delete details.creditCycle;delete details.isClosedShort;
+        txn.update(ref,cleanUndefined({...details,isDeleted:false,isSuperseded:false,orderDocumentPending:false,productionTrackingEnabled:true,updatedAt:serverTimestamp()}));
+        txn.set(doc(db,'history','order-details-'+orderId+'-'+Date.now()),cleanUndefined({userId:auth.currentUser?.uid,action:'PURCHASE_ORDER_DETAILS',createdAt:serverTimestamp(),orderId,fileSha256:analysis.fileContentSha256,before:current,details}));
+        return 'completed';
+      }
       txn.set(ref, cleanUndefined({ ...data, processedAt: toSafeTimestamp(analysis.docDate),
         estimatedDeliveryDate: parsed.estimatedDeliveryDate ? Timestamp.fromDate(parsed.estimatedDeliveryDate) : undefined,
         notes: 'OC importada desde ' + analysis.file.name, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }));
-      return false;
+      return 'created';
     });
     let storageWarning = false;
     try { await uploadDocument({ file: analysis.file, docKind: 'oc_providencia', folio: data.folio!, ocNumber: data.oc!, orderId, orderFolio: data.folio!, kilos: data.totalKilograms!, total: analysis.subtotal, docDate: analysis.docDate }); }
     catch { storageWarning = true; }
-    return { success: true, isDuplicate: duplicate, storageWarning, message: duplicate ? 'La OC ya existe. Se conservó sin duplicar ni reemplazar sus datos.' : 'Orden de compra ' + data.folio + ' registrada con ' + data.items!.length + ' partidas, ' + data.totalKilograms + ' kg y precios del documento.',
+    return { success: true, isDuplicate: outcome==='duplicate', storageWarning, message: outcome==='duplicate' ? 'La OC ya existe. Se conservó sin duplicar ni reemplazar sus datos.' : outcome==='completed' ? 'OC '+data.folio+' completada con sus partidas originales. Se conservaron las entregas y facturas existentes.' : 'Orden de compra ' + data.folio + ' registrada con ' + data.items!.length + ' partidas, ' + data.totalKilograms + ' kg y precios del documento.',
       docType: analysis.docType, folio: data.folio!, kilos: data.totalKilograms!, total: analysis.subtotal, orderId, orderFolio: data.folio, orderClient: data.client };
   }
 
@@ -1440,12 +1437,12 @@ export async function applyDocumentFast(
     const hasDocSubtotal = analysis.subtotal > 0;
 
     let sellPrice: number | null = null;
-    if (hasOrderSellPrice) {
+    if (hasDocSubtotal && numKilos>0) {
+      sellPrice=analysis.subtotal/numKilos;
+    } else if (hasOrderSellPrice) {
       sellPrice = targetOrder.customSellPrice!;
     } else if (targetOrder.financials?.salePricePerKg !== undefined && targetOrder.financials?.salePricePerKg !== null) {
       sellPrice = targetOrder.financials.salePricePerKg;
-    } else if (hasDocSubtotal && numKilos > 0) {
-      sellPrice = round2(analysis.subtotal / numKilos);
     }
 
     if (sellPrice === null) {
@@ -1561,19 +1558,7 @@ export async function applyDocumentFast(
     const existingDeliveries = targetOrder.deliveries || [];
     const updatedDeliveries = [...existingDeliveries];
 
-    // Entrega física amparada si no existía ya
-    if (numKilos > 0) {
-      updatedDeliveries.push({
-        id: `del-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        date: safeDate,
-        kilos: numKilos,
-        notes: `Entrega física amparada por Factura #${newInvoice.folio} (${numKilos.toLocaleString('es-MX')} kg)`,
-        invoiced: true,
-        invoiceId: newInvoice.id,
-        docType: 'factura',
-        docFolio: newInvoice.folio,
-      });
-    }
+    // A CFDI proves invoicing; physical delivery requires its own remisión/báscula.
 
     if (orderRef) {
       await safeUpdateDoc(orderRef, {

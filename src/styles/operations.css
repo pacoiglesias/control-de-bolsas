@@ -67,7 +67,7 @@
 .work-empty { text-align: center; padding: 36px 20px; color: var(--ink); border-top: 1px solid var(--line); }
 .work-empty p { color: var(--ink-soft); font-size: 13px; }
 .work-more { width: 100%; background: var(--paper-raised); color: var(--accent); border: 0; border-top: 1px solid var(--line); padding: 15px; font: inherit; font-size: 13px; cursor: pointer; }
-.work-shortcuts { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+.work-shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 12px; }
 .work-shortcuts button { display: flex; gap: 12px; align-items: center; text-align: left; background: var(--paper); border: 1px solid var(--line); padding: 16px 18px; border-radius: 12px; color: var(--ink); font: inherit; cursor: pointer; }
 .work-shortcuts button > span { font-size: 12px; color: var(--accent); font-weight: 800; }
 .work-shortcuts strong { display: block; font-size: 14px; font-weight: 650; }
@@ -88,7 +88,7 @@
   .work-row-content { flex-basis: 100%; }
   .work-row-action { width: 100%; flex-direction: row; justify-content: space-between; align-items: center; }
   .work-row-action button { min-height: 44px; }
-  .work-shortcuts { gap: 6px; }
+  .work-shortcuts { gap: 8px; grid-template-columns:repeat(2,minmax(0,1fr)); }
   .work-shortcuts button { display: block; padding: 12px 9px; }
   .work-shortcuts strong { font-size: 12px; margin-top: 6px; }
   .work-shortcuts small { font-size: 10px; line-height: 1.5; }

@@ -1,6 +1,5 @@
-import { collection, getDocs, doc, writeBatch, Timestamp, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { db, PATHS } from './firebase';
-import { round2 } from './finance';
 
 export interface AutoHealResult {
   purgedCount: number;
@@ -134,124 +133,11 @@ export const OFFICIAL_ACTIVE_CRS = [
  * históricos a propósito (por ejemplo, restaurando de un respaldo), hazlo
  * de forma explícita pasando `{ reseedHistoricalCrs: true }`.
  */
-export async function autoHealAndPurgeErpDatabase(
-  options: { reseedHistoricalCrs?: boolean } = {}
-): Promise<AutoHealResult> {
-  const snap = await getDocs(collection(db, PATHS.orders));
-  const batch = writeBatch(db);
-  let purgedCount = 0;
-  let healedCount = 0;
-
-  for (const d of snap.docs) {
-    const data = d.data() as any;
-    let canonicalKey = (data.oc || data.folio || d.id).trim().toUpperCase();
-    if (canonicalKey.startsWith('SEED-')) canonicalKey = canonicalKey.replace('SEED-', '');
-    if (canonicalKey.startsWith('CR-')) canonicalKey = canonicalKey.replace('CR-', '');
-
-    // 🛡️ PURGA SEGURA: Eliminar documentos que son semillas/dummies conocidos de prueba.
-    // NUNCA borrar OCs nuevas reales ni contrarecibos oficiales activos o pagados.
-    const SEED_PATTERNS = [
-      'ANDRES-PEND', '120267114014', '71/14014', '71-14014',
-      'SEED-', 'DUMMY-', 'TEST-',
-      'GT-597',
-    ];
-    const isSeed = (val: string) => SEED_PATTERNS.some(p => val.toUpperCase().includes(p.toUpperCase()));
-    const isNewValidOc = data.status === 'pedido' || data.status === 'en_produccion';
-    const isKnownSeed = isSeed(d.id) || isSeed(data.oc || '') || isSeed(data.folio || '');
-
-    // Solo purgar si es un seed de prueba conocido (nunca si es OC nueva válida)
-    if (isKnownSeed && !isNewValidOc) {
-      batch.delete(doc(db, PATHS.orders, d.id));
-      purgedCount++;
-    }
-  }
-
-  // Reinyección de la fotografía histórica: SOLO si se pide explícitamente.
-  // Ya no se ejecuta como parte del flujo normal de "sanación".
-  if (options.reseedHistoricalCrs) {
-  for (const c of OFFICIAL_ACTIVE_CRS) {
-    const docId = `cr-${c.cr.toLowerCase().replace('-', '')}`;
-    const existing = await getDoc(doc(db, PATHS.orders, docId));
-    if (existing.exists() && existing.data()?.isDeleted) {
-      continue; // NUNCA revivir documentos que el usuario eliminó
-    }
-    const issueDate = new Date(`${c.issue}T12:00:00Z`);
-    const dueDate = new Date(`${c.due}T12:00:00Z`);
-    const totalKilos = c.invoices.reduce((acc, inv) => acc + inv.kilos, 0);
-
-    const invoicesData = c.invoices.map((inv, idx) => {
-      const invSub = round2(inv.total / 1.16);
-      const invCost = round2(inv.kilos * 38);
-      const invComm = round2(invSub * 0.08);
-      return {
-        id: `inv-${docId}-${idx + 1}`,
-        orderId: docId,
-        folio: inv.folio,
-        kilos: inv.kilos,
-        financials: {
-          salePricePerKg: 43,
-          costPricePerKg: 38,
-          saleTotal: invSub,
-          invoiceTotal: inv.total,
-          costTotal: invCost,
-          commission: invComm,
-          netCashFlow: round2(invSub * 1.08 - invCost),
-          tradeMargin: round2(invSub - invCost),
-        },
-        creditCycle: {
-          status: 'pending',
-          issueDate: Timestamp.fromDate(issueDate),
-          dueDate: Timestamp.fromDate(dueDate),
-        },
-        collection: {
-          contrareciboNumber: c.cr,
-          contrareciboDate: Timestamp.fromDate(issueDate),
-        },
-      };
-    });
-
-    const docData: any = {
-      id: docId,
-      folio: c.cr,
-      oc: c.cr,
-      client: c.dept === 'TH' ? 'TEXTIL HOGAR (TH - NAVA)' : 'GRUPO TEXTIL PROVIDENCIA SA DE CV',
-      department: c.dept,
-      totalKilograms: totalKilos,
-      customSellPrice: 43,
-      customCostPrice: 38,
-      invoices: invoicesData,
-      collection: {
-        contrareciboNumber: c.cr,
-        contrareciboDate: Timestamp.fromDate(issueDate),
-      },
-      creditCycle: {
-        status: 'pending',
-        issueDate: Timestamp.fromDate(issueDate),
-        dueDate: Timestamp.fromDate(dueDate),
-      },
-      status: 'pending',
-      updatedAt: serverTimestamp(),
-    };
-
-    // Cuando se solicita resembrar explícitamente, se escribe el documento completo
-    batch.set(doc(db, PATHS.orders, docId), docData, { merge: true });
-    healedCount++;
-  }
-  }
-
-  // Ya NO se sobreescribe config/financials.historicalDebtAndres aquí.
-  // Ese valor se administra únicamente desde Configuración → Proveedor & Andrés,
-  // donde un humano lo confirma contra la conciliación real.
-
-  await batch.commit();
-
-  return {
-    purgedCount,
-    healedCount,
-    activeCrsCount: options.reseedHistoricalCrs ? OFFICIAL_ACTIVE_CRS.length : 0,
-    paidCrsCount: 0,
-    message: options.reseedHistoricalCrs
-      ? `Base de datos saneada: ${purgedCount} registros antiguos purgados. Se restauraron ${OFFICIAL_ACTIVE_CRS.length} contrarecibos históricos a petición explícita.`
-      : `Base de datos saneada: ${purgedCount} registros de prueba purgados. No se modificó ningún contrarecibo ni el saldo de Andrés.`,
-  };
+export async function autoHealAndPurgeErpDatabase(options: { reseedHistoricalCrs?: boolean } = {}): Promise<AutoHealResult> {
+  if(options.reseedHistoricalCrs) throw new Error('Los saldos históricos se restauran desde un respaldo o documento, no desde cifras fijas del código.');
+  const snap=await getDocs(collection(db,PATHS.orders));
+  const invoices=snap.docs.filter(d=>!d.data().isDeleted && !d.data().isSuperseded).flatMap(d=>d.data().invoices||[]);
+  const active=new Set(invoices.filter(i=>!['paid','collected'].includes(i.creditCycle?.status)).map(i=>i.collection?.contrareciboNumber).filter(Boolean));
+  const paid=new Set(invoices.filter(i=>['paid','collected'].includes(i.creditCycle?.status)).map(i=>i.collection?.contrareciboNumber).filter(Boolean));
+  return {purgedCount:0,healedCount:0,activeCrsCount:active.size,paidCrsCount:paid.size,message:'Revisión de registros reales terminada. No se borraron documentos ni se sustituyeron saldos.'};
 }

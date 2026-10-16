@@ -1,7 +1,7 @@
 import { buildReceivables } from '../lib/receivables';
 import { computeDeliveredTotals } from '../lib/deliveries';
 import { useMemo } from 'react';
-import { round2, computeCommissionFromInvoiceTotal, normalizarTexto, orderMatchesDepartment } from '../lib/finance';
+import { round2, computeCommissionFromInvoiceTotal, normalizarTexto, orderMatchesDepartment,computeAndresBalance } from '../lib/finance';
 import { toDate } from '../lib/format';
 import type { PurchaseOrder, Purchase, Expense, FinancialConfig } from '../lib/types';
 import { DEFAULT_CONFIG } from '../lib/types';
@@ -31,6 +31,7 @@ export function useDashboardStats(
       creditDays: config?.creditDays || 30,
       companyName: config?.companyName || 'Bolsas Elemental / Providencia',
       historicalDebtAndres: config?.historicalDebtAndres,
+      providerBalanceCutoff:config?.providerBalanceCutoff,
     };
 
     const deptOrders = (allDepartmentOrders || activeOrders || []).filter(o => {
@@ -59,16 +60,18 @@ export function useDashboardStats(
     const mesesObjEffective: Record<string, any> = {};
     deptOrders.forEach(o => {
       if (!o) return;
-      const dateObj = toDate(o.processedAt || (o as any).createdAt);
-      if (!dateObj) return;
+      for(const invoice of o.invoices||[]) {
+      const dateObj = toDate(invoice.creditCycle?.issueDate);
+      if (!dateObj) continue;
       const mKey = dateObj.toISOString().slice(0, 7);
       if (!mesesObjEffective[mKey]) {
         mesesObjEffective[mKey] = { kilos: 0, venta: 0, gananciaRealizada: 0, margen: 0 };
       }
-      const sum = o.totalKilograms || 0;
+      const sum = invoice.kilos || 0;
       mesesObjEffective[mKey].kilos += sum;
-      mesesObjEffective[mKey].venta += sum * cfg.salePricePerKg;
-      mesesObjEffective[mKey].margen += sum * (cfg.salePricePerKg - cfg.costPricePerKg);
+      mesesObjEffective[mKey].venta += invoice.financials?.saleTotal || 0;
+      if(!invoice.financials?.isEstimatedCost) mesesObjEffective[mKey].margen += (invoice.financials?.saleTotal||0)-(invoice.financials?.costTotal||0);
+      }
     });
 
     const mesesKeys = Object.keys(mesesObjEffective).sort();
@@ -86,7 +89,7 @@ export function useDashboardStats(
       if (!o) return;
       const kg = Number(o.totalKilograms) || 0;
       effectiveTotalKilos += kg;
-      const venta = kg * cfg.salePricePerKg;
+      const venta = (o.invoices||[]).reduce((sum,invoice)=>sum+(invoice.financials?.saleTotal||0),0);
       effectiveTotalVendido += venta;
       effectiveNetoTotal += venta;
 
@@ -98,10 +101,10 @@ export function useDashboardStats(
 
         const st = inv.creditCycle?.status;
         const invKg = Number(inv.kilos) || 0;
-        const invSale = invKg * cfg.salePricePerKg;
-        const invCost = invKg * cfg.costPricePerKg;
-        const invComm = invSale * cfg.commissionRate;
-        const invProfit = invSale - invCost - invComm;
+        const invSale = inv.financials?.saleTotal ?? invKg * cfg.salePricePerKg;
+        const invCost = inv.financials?.costTotal ?? invKg * cfg.costPricePerKg;
+        const invComm = inv.financials?.commission ?? invSale * cfg.commissionRate;
+        const invProfit = inv.financials?.isEstimatedCost ? 0 : invSale - invCost - invComm;
 
         if (st === 'paid' || st === 'collected') {
           effectiveCobrado += inv.financials?.invoiceTotal ?? (invSale * (1 + cfg.ivaRate));
@@ -171,7 +174,7 @@ export function useDashboardStats(
     let opex = 0;
     let totalPagadoAndres = 0;
     (expenses || []).forEach(e => {
-      if (!e) return;
+      if (!e || e.isDeleted) return;
       if (e.type === 'ingreso') {
         localSaldoCaja += Number(e.amount) || 0;
       } else {
@@ -192,13 +195,10 @@ export function useDashboardStats(
 
     });
 
-    let totalPurchasesCost = 0;
-    (purchases || []).forEach(p => {
-      if (!p || normalizarTexto(p.provider) !== 'andres') return;
-      totalPurchasesCost += (Number(p.receivedKilos) || 0) * (p.pricePerKg || cfg.costPricePerKg);
-    });
     const deudaHistorica = typeof cfg.historicalDebtAndres === 'number' ? cfg.historicalDebtAndres : 103411.84;
-    const deudaAndres = round2(deudaHistorica);
+    const providerBalance=computeAndresBalance(purchases,expenses,{...cfg,historicalDebtAndres:deudaHistorica});
+    const deudaAndres = providerBalance.saldoProveedor;
+    totalPagadoAndres=providerBalance.totalPagado;
 
     const transito = round2(porRecibir.reduce((acc: number, r: any) => acc + r.net, 0));
     const proyeccionFlujo = localSaldoCaja + transito + deudaAndres;
@@ -219,7 +219,7 @@ export function useDashboardStats(
       kilosTotal: effectiveTotalKilos,
       facturasEmitidas: effectiveFacturasEmitidas,
       periodText,
-      margenTotal: round2(effectiveTotalKilos * (cfg.salePricePerKg - cfg.costPricePerKg)),
+      margenTotal: round2(Object.values(mesesObjEffective).reduce((sum:number,m:any)=>sum+m.margen,0)),
       gananciaRealizadaTotal: round2(effectiveGananciaRealizada),
       porRecibir,
       totalPorRecibir: round2(porRecibir.reduce((acc: number, r: any) => acc + r.net, 0)),
@@ -242,7 +242,7 @@ export function useDashboardStats(
       localSaldoCaja: round2(localSaldoCaja),
       deudaAndres: round2(deudaAndres),
       totalPagadoAndres: round2(totalPagadoAndres),
-      totalPurchasesCost: round2(totalPurchasesCost),
+      totalPurchasesCost: round2(providerBalance.totalPurchasesCost),
       proyeccionFlujo: round2(proyeccionFlujo),
       opex: round2(opex),
       utilidadNeta: round2(utilidadNeta)

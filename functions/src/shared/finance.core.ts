@@ -246,17 +246,20 @@ export function computeDynamicFinancials(input: DynamicFinancialsInput): Dynamic
  * (a su favor); negativo significa que todavía se le debe.
  */
 export interface AndresBalanceConfig {
+  providerBalanceCutoff?: string;
   costPricePerKg: number;
   historicalDebtAndres?: number;
 }
 
 export interface AndresPurchaseLike {
+  date?: any; createdAt?: any; isDeleted?: boolean; isSuperseded?: boolean;
   provider?: string | null;
   receivedKilos?: number | null;
   pricePerKg?: number | null;
 }
 
 export interface AndresExpenseLike {
+  date?: any; createdAt?: any; isDeleted?: boolean; isSuperseded?: boolean; isAndresPayment?: boolean;
   provider?: string | null;
   type?: string | null;
   amount?: number | null;
@@ -277,12 +280,20 @@ export function computeAndresBalance(
   providerFilter: string = 'Andres',
 ): AndresBalanceResult {
   const target = normalizarTexto(providerFilter);
+  const cutoff=cfg.providerBalanceCutoff?new Date(cfg.providerBalanceCutoff).getTime():0;
+  const inPeriod=(record:AndresPurchaseLike|AndresExpenseLike)=>{
+    if(record.isDeleted || record.isSuperseded)return false;
+    if(!cutoff)return true;
+    const date=record.date||record.createdAt;
+    const millis=date?.toMillis?.() ?? (date?.__timestamp?new Date(date.__timestamp).getTime():date?new Date(date).getTime():0);
+    return millis>=cutoff;
+  };
 
   const provPurchases = (purchases || []).filter(
-    (p): p is AndresPurchaseLike => !!p && normalizarTexto(p.provider) === target,
+    (p): p is AndresPurchaseLike => !!p && inPeriod(p) && normalizarTexto(p.provider) === target,
   );
   const provExpenses = (expenses || []).filter(
-    (e): e is AndresExpenseLike => !!e && normalizarTexto(e.provider) === target,
+    (e): e is AndresExpenseLike => !!e && inPeriod(e) && (normalizarTexto(e.provider) === target || (target==='andres' && e.isAndresPayment===true)),
   );
 
   const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (Number(p.receivedKilos) || 0), 0);
@@ -293,7 +304,7 @@ export function computeAndresBalance(
   );
 
   const totalPagado = provExpenses.reduce((acc, e) => {
-    if (e.type === 'egreso') return acc + (Number(e.amount) || 0);
+    if (e.type === 'egreso' || e.type === 'salida') return acc + (Number(e.amount) || 0);
     if (e.type === 'ingreso') return acc - (Number(e.amount) || 0);
     return acc;
   }, 0);

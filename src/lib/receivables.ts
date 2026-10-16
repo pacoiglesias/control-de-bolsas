@@ -6,7 +6,7 @@ import { DEFAULT_CONFIG, type FinancialConfig, type PurchaseOrder } from './type
 export function buildReceivables(orders: PurchaseOrder[], config: FinancialConfig = DEFAULT_CONFIG, now = new Date()) {
   const seen = new Set<string>();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const rows = orders.filter(o => !o.isDeleted).flatMap(order => (order.invoices ?? []).flatMap((invoice, index) => {
+  const rows = orders.filter(o => !o.isDeleted && !(o as any).isSuperseded).flatMap(order => (order.invoices ?? []).filter(i=>!(i as any).isDeleted && !(i as any).isSuperseded).flatMap((invoice, index) => {
     const key = invoice.uuid?.trim().toUpperCase() || `${order.id}:${invoice.id || index}`;
     if (seen.has(key)) return [];
     seen.add(key);

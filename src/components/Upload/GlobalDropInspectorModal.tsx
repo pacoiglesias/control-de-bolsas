@@ -39,6 +39,8 @@ type DetectedDocType = 'factura_cfdi' | 'ticket_bascula' | 'contrarecibo' | 'rem
 export function GlobalDropInspectorModal({ file, queuePosition, onClose }: GlobalDropInspectorModalProps) {
   const orderState = useOrdersContext();
   const orders = orderState.documentOrders || orderState.orders;
+  const analysisOrdersRef=useRef(orders);
+  analysisOrdersRef.current=orders;
   const toast = useToast();
   const uploadCallbacks = useRef({ toast, onClose });
   uploadCallbacks.current = { toast, onClose };
@@ -76,6 +78,7 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
 
   // Analizar archivo en el montaje
   useEffect(() => {
+    const orders=analysisOrdersRef.current;
     let active = true;
     let createdUrl: string | null = null;
 
@@ -440,7 +443,7 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
       active = false;
       if (createdUrl) URL.revokeObjectURL(createdUrl);
     };
-  }, [file, orders]);
+  }, [file]);
 
   // Orden seleccionada para mostrar impacto
   const selectedOrder = orders.find((o) => o.id === selectedOrderId);
@@ -470,10 +473,12 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
     }
     return { isDuplicate: false };
   }, [orders, extractedFolio, extractedUuid, selectedOrderId]);
+  const canCompleteInvoice=docType==='factura_cfdi' && !!extractedUuid && !!(duplicateStatus?.invoice as any)?.reconciliation?.version && (!duplicateStatus?.invoice?.uuid || !!(duplicateStatus.invoice as any).quantityPending);
+  const blockingDuplicate=!!duplicateStatus?.isDuplicate && !canCompleteInvoice;
 
   // Acción de Confirmación y Aplicación Atómica
   const handleConfirmAndApply = async () => {
-    if (ocKind === 'oc_providencia' || docType === 'comprobante_pago') {
+    if (ocKind === 'oc_providencia' || docType === 'comprobante_pago' || canCompleteInvoice) {
       setSaving(true);
       try {
         const analysis = await analyzeDocumentFast(file, orders);
@@ -1000,7 +1005,8 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
               </div>
 
               {/* Banner de Validación Analítica: Duplicada vs Nueva */}
-              {docType === 'factura_cfdi' && duplicateStatus?.isDuplicate && (
+              {canCompleteInvoice && <div className="work-callout"><strong>Completar factura existente</strong><p>Se comprobarán UUID, importe y conceptos. Se conservan sus pagos y contrarrecibo, sin crear otra venta.</p></div>}
+              {docType === 'factura_cfdi' && blockingDuplicate && (
                 <div
                   style={{
                     padding: '10px 12px',
@@ -1377,10 +1383,11 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
               onClick={handleConfirmAndApply}
               disabled={
                 saving ||
-                (docType === 'factura_cfdi' && !!duplicateStatus?.isDuplicate) ||
+                (docType === 'factura_cfdi' && blockingDuplicate) ||
                 (() => {
                   const isOc = ocKind === 'oc_providencia';
                   if (isOc) return !extractedFolio && extractedKilos <= 0;
+                  if (canCompleteInvoice) return false;
                   if (paymentDetail?.allocations?.length) return false;
                   if (!selectedOrderId) return true;
                   const kilosRequired = docType === 'factura_cfdi' || docType === 'ticket_bascula' || docType === 'remision';
@@ -1395,22 +1402,23 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
                 borderRadius: 10,
                 fontWeight: 900,
                 fontSize: 13,
-                background: (docType === 'factura_cfdi' && duplicateStatus?.isDuplicate)
+                background: (docType === 'factura_cfdi' && blockingDuplicate)
                   ? '#64748b'
                   : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                 color: '#fff',
                 border: 'none',
-                boxShadow: (docType === 'factura_cfdi' && duplicateStatus?.isDuplicate)
+                boxShadow: (docType === 'factura_cfdi' && blockingDuplicate)
                   ? 'none'
                   : '0 4px 14px rgba(16, 185, 129, 0.4)',
-                cursor: (docType === 'factura_cfdi' && duplicateStatus?.isDuplicate) ? 'not-allowed' : 'pointer',
+                cursor: (docType === 'factura_cfdi' && blockingDuplicate) ? 'not-allowed' : 'pointer',
               }}
             >
               {saving && uploadingFile
                 ? '☁️ Subiendo archivo...'
                 : saving
                   ? '⏳ Aplicando...'
-                  : (docType === 'factura_cfdi' && duplicateStatus?.isDuplicate)
+                  : canCompleteInvoice ? 'Completar datos de esta factura'
+                  : (docType === 'factura_cfdi' && blockingDuplicate)
                     ? '⚠️ Factura ya Registrada (Duplicada)'
                     : (ocKind === 'oc_providencia' && !selectedOrderId)
                       ? '✅ Crear Nueva Orden de Compra en el Sistema'

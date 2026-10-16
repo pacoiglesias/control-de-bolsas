@@ -34,13 +34,14 @@ export function DashboardExecutiveView({
   onOpenQuickInvoice,
   onOpenQuickCollection,
   onOpenQuickDelivery,
-  onOpenUniversalUpload: _onOpenUniversalUpload,
+  onOpenUniversalUpload,
 }: DashboardExecutiveViewProps) {
   const { role } = useAuth();
   const canOperate = role === 'admin' || role === 'manager';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {canOperate && <nav className="work-shortcuts" aria-label="Acciones de operación diaria">
+        {onOpenUniversalUpload && <button type="button" onClick={onOpenUniversalUpload}><span>＋</span><div><strong>Subir documento</strong><small>Detectar y completar datos</small></div></button>}
         <button type="button" onClick={() => onOpenQuickDelivery()}><span>01</span><div><strong>Registrar entrega</strong><small>Captura kilos y remisión</small></div></button>
         <button type="button" onClick={() => onOpenQuickInvoice()}><span>02</span><div><strong>Registrar factura</strong><small>Vincula folio y entregas</small></div></button>
         <button type="button" onClick={onOpenQuickCollection}><span>03</span><div><strong>Registrar cobro</strong><small>Revisa pagos y saldos</small></div></button>

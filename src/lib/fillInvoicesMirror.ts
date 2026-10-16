@@ -23,10 +23,10 @@ export async function llenarEspejoDeFacturas(): Promise<{ expedientes: number; f
 
   for (const orderDoc of ordersSnap.docs) {
     const data = orderDoc.data() as any;
-    if (data.isDeleted) continue; // los expedientes en la Papelera no aportan al espejo
+    if (data.isDeleted || data.isSuperseded) continue;
     const invoices = data.invoices || [];
     for (const inv of invoices) {
-      if (!inv?.id) continue;
+      if (!inv?.id || inv.isDeleted || inv.isSuperseded) continue;
       const invRef = doc(db, PATHS.invoices, inv.id);
       batch.set(invRef, {
         ...inv,

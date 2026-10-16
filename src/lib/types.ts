@@ -13,6 +13,7 @@ export type AnyFirestoreDate =
 export type OrderStatus = 'pedido' | 'facturado' | 'pending' | 'in_review' | 'paid' | 'collected' | 'overdue' | 'manual_review' | 'completed';
 
 export interface FinancialConfig {
+  providerBalanceCutoff?: string;
   salePricePerKg: number;
   costPricePerKg: number;
   commissionRate: number;
@@ -167,6 +168,7 @@ export interface CollectionInfo {
 }
 
 export interface Delivery {
+  inferredFromInvoice?: boolean;
   id: string;
   date: Timestamp | null;
   /**
@@ -266,52 +268,9 @@ export const CANONICAL_GT_ITEMS_439784: PurchaseOrderItem[] = [
   { id: 'it-gt-9784-5', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM (60+40x95)', quantity: 1000, deliveredQuantity: 500, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
 ];
 
+/** Product lines come from the saved order, never from its department or number. */
 export function getEffectiveOrderItems(order?: PurchaseOrder | null): PurchaseOrderItem[] {
-  if (!order) return [];
-
-  const text = `${order.department || ''} ${order.client || ''} ${order.oc || ''} ${order.folio || ''}`.toUpperCase();
-  const is9784 = text.includes('43/9784') || text.includes('439784') || text.includes('12026439784') || text.includes('9784');
-  if (is9784) {
-    const existingCodes = (order.items || []).map(it => (it.code || '').toUpperCase());
-    const has17 = existingCodes.some(c => c.includes('EGBO000017'));
-    const has18 = existingCodes.some(c => c.includes('EGBO000018'));
-    const has93 = existingCodes.some(c => c.includes('EGBO000093'));
-    const has94 = existingCodes.some(c => c.includes('EGBO000094'));
-    const has95 = existingCodes.some(c => c.includes('EGBO000095'));
-    if (!has17 || !has18 || !has93 || !has94 || !has95 || (order.items || []).length !== 5) {
-      return CANONICAL_GT_ITEMS_439784;
-    }
-    if (order.items && order.items.length > 0) return order.items;
-    return CANONICAL_GT_ITEMS_439784;
-  }
-
-  const is9753 = text.includes('43/9753') || text.includes('439753') || text.includes('12026439753') || text.includes('9753');
-
-  // Para la OC 439753: verificar que los items guardados estén completos (los 4 artículos).
-  // Si faltan códigos del canónico (ej. EGBO000094-SC no fue guardado en la sesión anterior),
-  // se retorna el canónico completo para garantizar que la facturación rápida no quede trunca.
-  if (is9753) {
-    const REQUIRED_CODES_9753 = ['EGBO000095-SC', 'EGBO000093-SC', 'EGBO000018-SC', 'EGBO000094-SC'];
-    const existingCodes = (order.items || []).map(it => (it.code || '').toUpperCase());
-    const allPresent = REQUIRED_CODES_9753.every(c => existingCodes.includes(c));
-    if (!allPresent) {
-      // [AUDIT][getEffectiveOrderItems] OC 439753: items incompletos en Firestore, usando canónico completo.
-      return CANONICAL_GT_ITEMS_439753;
-    }
-    // Si están todos, respetar los items del documento (pueden tener deliveredQuantity ya anotada).
-    if (order.items && order.items.length > 0) return order.items;
-    return CANONICAL_GT_ITEMS_439753;
-  }
-
-  if (order.items && order.items.length > 0) return order.items;
-
-  if (text.includes('TH') || text.includes('TEXTIL HOGAR') || text.includes('NAVA') || text.includes('LAMU') || text.includes('14114')) {
-    return CANONICAL_TH_ITEMS;
-  }
-  if (text.includes('GT') || text.includes('GRUPO TEXTIL') || text.includes('EVELIA') || text.includes('P4') || text.includes('439713')) {
-    return CANONICAL_GT_ITEMS;
-  }
-  return [];
+  return order?.items || [];
 }
 
 export interface PurchaseOrder {
@@ -405,6 +364,7 @@ export interface AuditMetadata {
 }
 
 export interface Expense {
+  isDeleted?: boolean;
   id: string;
   date: Timestamp | null;
   concept: string;

@@ -26,14 +26,14 @@ export function buildOperationalTasks(orders: PurchaseOrder[], now = new Date())
   const tasks: OperationalTask[] = [];
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   for (const order of orders) {
-    if (order.isDeleted) continue;
+    if (order.isDeleted || (order as any).isSuperseded) continue;
     const base = { orderId: order.id, reference: order.oc || order.folio || 'Sin folio', client: order.client || 'Sin cliente' };
     const delivered = computeDeliveredTotals(order.deliveries ?? [], order.items).kilosEntregados;
     const invoiced = (order.invoices ?? []).reduce((sum, invoice) => sum + (Number(invoice.kilos) || 0), 0);
     const itemKilos = (order.items ?? []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
     const pendingDelivery = round2(Math.max(0, (itemKilos || order.totalKilograms || 0) - delivered));
     const date = toDate(order.estimatedDeliveryDate);
-    if (!order.isClosedShort && pendingDelivery > 0.01) {
+    if (!order.isClosedShort && (order as any).productionTrackingEnabled!==false && pendingDelivery > 0.01) {
       tasks.push({ ...base, id: `delivery-${order.id}`, category: 'delivery', title: 'Registrar la siguiente entrega',
         detail: date ? `Programada: ${date.toLocaleDateString('es-MX')}` : 'Falta programar la entrega.',
         action: 'Registrar entrega', kilos: pendingDelivery, urgent: Boolean(date && date.getTime() < today), sortDate: date?.getTime() ?? Infinity });

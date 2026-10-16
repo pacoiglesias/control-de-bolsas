@@ -47,9 +47,9 @@ export async function applyProvidenciaPayment(payment: ParsedProvidenciaPaymentD
       const full = Math.abs(total - paid) <= 0.01;
       const invoice: Invoice = { ...current, collection: { ...current.collection, paidAmount: paid,
         contrareciboNumber: receipt.row.contrareciboNumber, transferRef: ref,
-        ...(full ? { paidAt, collectedAt: paidAt } : {}),
+        ...(full ? { paidAt } : {}),
         paymentsHistory: [...(current.collection?.paymentsHistory || []), { receiptId: receipt.receiptKey, reference: ref, amount: receipt.row.amount, date: paidAt, notes: `Detalle Providencia ${ref} · SAP ${receipt.row.doctoSap}` }],
-      }, creditCycle: { ...current.creditCycle, status: full ? 'collected' : 'in_review' } };
+      }, creditCycle: { ...current.creditCycle, status: full ? 'paid' : 'in_review' } };
       updates.push({ invoice, orderId: order.id, receipt, paidAt });
     }
     const changed = new Map<string, Invoice[]>();
@@ -66,9 +66,9 @@ export async function applyProvidenciaPayment(payment: ParsedProvidenciaPaymentD
     }
     for (const [orderId, invoices] of changed) {
       const paidAmount = round2(invoices.reduce((sum, invoice) => sum + (invoice.collection?.paidAmount || 0), 0));
-      const full = invoices.every(invoice => invoice.creditCycle?.status === 'collected');
+      const full = invoices.every(invoice => ['paid','collected'].includes(invoice.creditCycle?.status));
       txn.update(doc(db, PATHS.orders, orderId), cleanUndefined({ invoices, 'collection.paidAmount': paidAmount,
-        ...(full ? { 'creditCycle.status': 'collected', status: 'collected' } : {}), updatedAt: serverTimestamp() }));
+        ...(full ? { 'creditCycle.status': 'paid', status: 'paid' } : {}), updatedAt: serverTimestamp() }));
     }
     return { isDuplicate: updates.length === 0, appliedRows: updates.length };
   });

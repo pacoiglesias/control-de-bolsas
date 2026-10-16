@@ -99,6 +99,7 @@ export function computeDeliveredTotals(deliveries: Delivery[], orderItems?: Purc
   let kilosEntregados = 0;
 
   deliveries.forEach((d) => {
+    if (d.inferredFromInvoice) return;
     const items = d.items ?? [];
     const sumItems = items.reduce((a, x) => a + (Number(x.quantity) || 0), 0);
     const dKilos = Number(d.kilos) || sumItems;
