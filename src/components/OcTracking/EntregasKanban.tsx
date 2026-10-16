@@ -34,7 +34,7 @@ export function EntregasKanban({
         const st = i.creditCycle?.status;
         return st === 'paid' || st === 'collected';
       });
-      const isCollected = o.creditCycle?.status === 'collected' || o.creditCycle?.status === 'paid' || Boolean(o.isClosedShort) || (invoices.length > 0 && todasCobradas);
+      const isCollected = (entregaCompleta || Boolean(o.isClosedShort) || o.productionTrackingEnabled === false) && todasCobradas;
 
       if (isCollected || (entregaCompleta && todasCobradas)) {
         cobrado.push(o);

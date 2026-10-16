@@ -12,7 +12,7 @@ import { getEffectiveOrderItems } from './types';
 /** Arma una entrega nueva en blanco, con un renglón en 0 por cada producto de la OC. */
 export function newDeliveryEvent(items: PurchaseOrderItem[]): Delivery {
   return {
-    id: Date.now().toString(),
+    id: crypto.randomUUID(),
     date: Timestamp.now(),
     kilos: 0,
     items: items.map((it) => ({ itemId: it.id, quantity: 0 })),
@@ -23,7 +23,7 @@ export function newDeliveryEvent(items: PurchaseOrderItem[]): Delivery {
 
 /** Revalidar dentro de la transacción evita sobreentregas entre dos capturas simultáneas. */
 export function assertDeliveryFitsOrder(order: PurchaseOrder, kilos: number, items?: Delivery['items']): void {
-  if (order.isDeleted || order.isClosedShort) throw new Error('La orden está cerrada o en la papelera.');
+  if (order.isDeleted || order.isSuperseded || order.isClosedShort || order.productionTrackingEnabled === false) throw new Error('La orden está cerrada, retirada o fuera de producción.');
   if (!Number.isFinite(kilos) || kilos <= 0) throw new Error('Captura kilos válidos mayores a cero.');
   const itemTotal = (order.items ?? []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
   const ordered = itemTotal > 0 ? itemTotal : Number(order.totalKilograms) || 0;
@@ -31,6 +31,10 @@ export function assertDeliveryFitsOrder(order: PurchaseOrder, kilos: number, ite
   const pending = round2(Math.max(0, ordered - delivered.kilosEntregados));
   if (kilos > pending + 0.001) throw new Error(`Solo quedan ${pending.toLocaleString('es-MX')} kg por entregar. Actualiza la captura.`);
   if (items) {
+    if (new Set(items.map(item => item.itemId)).size !== items.length) throw new Error('Hay partidas repetidas en la entrega.');
+    if ((order.items || []).length && items.some(item => item.quantity > 0 && !order.items?.some(candidate => candidate.id === item.itemId))) {
+      throw new Error('La entrega contiene una partida que no pertenece a la orden.');
+    }
     if (items.some(item => !Number.isFinite(item.quantity) || item.quantity < 0) ||
       Math.abs(round2(items.reduce((sum, item) => sum + item.quantity, 0)) - round2(kilos)) > 0.001) {
       throw new Error('La suma de las partidas debe coincidir con los kilos de la entrega.');
@@ -159,7 +163,7 @@ export function computeItemInvoiceBreakdown(
   defaultUnitPrice: number = 43
 ): ItemInvoiceBreakdown[] {
   const effectiveItems = getEffectiveOrderItems(order);
-  const deliveries = order.deliveries || [];
+  const deliveries = (order.deliveries || []).filter(delivery => !delivery.inferredFromInvoice);
   const invoices = order.invoices || [];
 
   const totalDeliveredKilos = deliveries.reduce((sum, d) => {
@@ -244,8 +248,6 @@ export function computeItemInvoiceBreakdown(
       itemDelivered = deliveredMap[itemKeyByCode];
     } else if (itemKeyByDesc && deliveredMap[itemKeyByDesc] !== undefined) {
       itemDelivered = deliveredMap[itemKeyByDesc];
-    } else if (it.deliveredQuantity && Number(it.deliveredQuantity) > 0) {
-      itemDelivered = Number(it.deliveredQuantity);
     }
 
     // Si existen entregas globales sin desglose por ítem, distribuir proporcionalmente
@@ -334,6 +336,7 @@ export function linkDeliveriesToInvoice(
 
 /** Totales físicos y facturados de una entrega, compatibles con registros anteriores. */
 export function getDeliveryBilling(delivery: Delivery) {
+  if (delivery.inferredFromInvoice) return {kilos: 0, invoicedKilos: 0, pendingKilos: 0};
   const itemsKilos = (delivery.items ?? []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
   const kilos = round2(Math.max(0, itemsKilos > 0 ? itemsKilos : Number(delivery.kilos) || 0));
   const allocated = (delivery.invoiceAllocations ?? []).reduce((sum, allocation) => sum + allocation.kilos, 0);
@@ -410,6 +413,7 @@ export function unmarkDeliveriesByInvoiceId(deliveries: Delivery[], invoiceId: s
 /** Migra expedientes sin eventos de entrega. */
 export function migrateLegacyDeliveries(order: PurchaseOrder, existingDeliveries: Delivery[]): Delivery[] {
   if (existingDeliveries && existingDeliveries.length > 0) return existingDeliveries;
+  if (Array.isArray(order.deliveries)) return [];
 
   const items = order.items ?? [];
   const totalLegacy = items.reduce((acc, it) => acc + (Number(it.deliveredQuantity) || 0), 0);
@@ -422,17 +426,6 @@ export function migrateLegacyDeliveries(order: PurchaseOrder, existingDeliveries
       items: items.map((it) => ({ itemId: it.id, quantity: Number(it.deliveredQuantity) || 0 })),
       invoiced: (order.invoices?.length ?? 0) > 0,
       notes: 'Migrado automáticamente del formato anterior (sin evento de entrega individual).',
-    }];
-  }
-
-  const kilosFacturados = (order.invoices ?? []).reduce((acc, inv) => acc + (Number(inv.kilos) || 0), 0);
-  if (kilosFacturados > 0) {
-    return [{
-      id: `legacy-${order.id}`,
-      date: order.processedAt ?? Timestamp.now(),
-      kilos: round2(kilosFacturados),
-      invoiced: true,
-      notes: 'Migrado automáticamente: kilos amparados en facturas emitidas.',
     }];
   }
 

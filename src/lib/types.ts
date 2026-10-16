@@ -328,6 +328,9 @@ export interface PurchaseOrder {
   updatedAt?: Timestamp | null;
   aiError?: string;
   isClosedShort?: boolean;
+  productionTrackingEnabled?: boolean;
+  orderDocumentPending?: boolean;
+  isSuperseded?: boolean;
   /** Auditoría y control de cierre de OC (kilos entregados vs contratados, faltantes y motivo) */
   closureAudit?: OcClosureAudit;
   /** Marca de borrado suave (soft-delete). Cuando es true el expediente se

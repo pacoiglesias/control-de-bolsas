@@ -416,17 +416,7 @@ export function getOrderSummary(o: PurchaseOrder) {
   const isReconstructedDelivery = Boolean(
     !Array.isArray(o.deliveries) && deliveries.length === 0 && invoices.length > 0
   );
-  // Si no hay entregas, no asumimos que entregaron los kilos pedidos. Asumimos como minimo lo facturado.
-  if (!Array.isArray(o.deliveries) && deliveries.length === 0 && invoices.length > 0) {
-    const fallbackKilos = invoices.reduce((acc, i) => acc + (i ? Number(i.kilos || 0) : 0), 0);
-    if (fallbackKilos > 0) {
-      deliveries.push({
-        id: o.id + '-del0',
-        date: o.processedAt || null,
-        kilos: fallbackKilos
-      });
-    }
-  }
+  // Fiscal invoices do not establish physical delivery, including legacy records.
 
   const isHistoricalIncomplete = Boolean(
     isReconstructedInvoice || isReconstructedDelivery || (o as any).isHistorical || ((o.totalKilograms || 0) > 0 && (o.deliveries || []).length === 0)
@@ -440,10 +430,9 @@ export function getOrderSummary(o: PurchaseOrder) {
     return a + Number(d.kilos || 0);
   }, 0);
 
-  const totalInvoicedKilos = invoices.reduce((acc, i) => acc + (i ? Number(i.kilos || 0) : 0), 0);
   // Auditoría: si hay entregas explícitas, respetar los kilos reales de báscula (rawDelivered)
   // sin forzarlos artificialmente al mayor entre facturado y entregado.
-  const kilosDelivered = round2(Array.isArray(o.deliveries) ? rawDelivered : (rawDelivered > 0 ? rawDelivered : totalInvoicedKilos));
+  const kilosDelivered = round2(rawDelivered);
   
   let kilosInvoiced = new Decimal(0), invoiceTotal = new Decimal(0), saleTotal = new Decimal(0), commission = new Decimal(0), netCashFlow = new Decimal(0), paidAmount = new Decimal(0);
   let tradeMargin = new Decimal(0), realizedProfit = new Decimal(0);

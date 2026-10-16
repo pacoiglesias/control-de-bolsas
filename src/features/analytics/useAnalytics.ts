@@ -74,7 +74,7 @@ export function computeAnalytics(orders: PurchaseOrder[] = []): AnalyticsData {
       const existing = monthMap.get(key) ?? { mes: label, ventas: 0, ganancia: 0, kilos: 0, ordenes: 0 };
       existing.ventas    += summary.invoiceTotal   || 0;
       existing.ganancia  += summary.realizedProfit || 0;
-      existing.kilos     += summary.kilosDelivered || 0;
+      existing.kilos     += summary.kilosInvoiced || 0;
       existing.ordenes   += 1;
       monthMap.set(key, existing);
     }
@@ -95,7 +95,7 @@ export function computeAnalytics(orders: PurchaseOrder[] = []): AnalyticsData {
       };
       existing.facturado += summary.invoiceTotal   || 0;
       existing.ganancia  += summary.realizedProfit > 0 ? summary.realizedProfit : (summary.tradeMargin || 0);
-      existing.kilos     += summary.kilosDelivered || 0;
+      existing.kilos     += summary.kilosInvoiced || 0;
       existing.ordenes   += 1;
       clientMap.set(client, existing);
     }
@@ -152,7 +152,7 @@ export function computeAnalytics(orders: PurchaseOrder[] = []): AnalyticsData {
       const summary = getOrderSummary(o);
       totalVentas   += summary.invoiceTotal   || 0;
       totalGanancia += summary.realizedProfit || 0;
-      totalKilos    += summary.kilosDelivered || 0;
+      totalKilos    += summary.kilosInvoiced || 0;
       if (summary.status === 'collected') ordenesCobradas++;
       else ordenesActivas++;
       if ((summary.maxDaysLate || 0) > 0) {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { doc, serverTimestamp, Timestamp, addDoc, collection, runTransaction } from 'firebase/firestore';
+import { doc, serverTimestamp, Timestamp, addDoc, collection } from 'firebase/firestore';
 import { safeSetDoc } from '../../lib/safeFirestore';
 import { db, PATHS } from '../../lib/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -8,6 +8,7 @@ import { toInputDate, fromInputDate, toDate } from '../../lib/format';
 import { Modal, Field, Empty } from '../ui';
 import type { Purchase, PurchaseOrder } from '../../lib/types';
 import { newDeliveryEvent, updateDeliveryField, updateDeliveryItemQuantity, computeDeliveredTotals, migrateLegacyDeliveries, upsertAndresPurchase } from '../../lib/deliveries';
+import {registerDeliveryEvent} from '../../lib/registerDeliveryEvent';
 import { logAction, safeDeleteDoc } from '../../lib/logger';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
 import { round2 } from '../../lib/finance';
@@ -114,7 +115,7 @@ export function OrderModal({ purchase, onClose, costPricePerKg }: { purchase: Pu
   );
 }
 
-export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { order: PurchaseOrder, onClose: () => void, costPricePerKg: number }) {
+export function RegistrarEntregaModal({ order, onClose, costPricePerKg, recordPurchase = false }: { order: PurchaseOrder, onClose: () => void, costPricePerKg: number, recordPurchase?: boolean }) {
   const toast = useToast();
   const { settings } = useSystemSettings();
   const [busy, setBusy] = useState(false);
@@ -146,23 +147,9 @@ export function RegistrarEntregaModal({ order, onClose, costPricePerKg }: { orde
     }
     setBusy(true);
     try {
-      const ref = doc(db, PATHS.orders, order.id);
-      const nuevasDeliveries = [...existingDeliveries, nueva];
-      const { kilosEntregados: totalEntregadoAhora } = computeDeliveredTotals(nuevasDeliveries, order.items ?? []);
+      const totalEntregadoAhora = await registerDeliveryEvent(order.id, nueva, toDate(baselineUpdatedAt)?.getTime());
       
-      await runTransaction(db, async (tx) => {
-        const snap = await tx.get(ref);
-        if (!snap.exists()) throw new Error('El expediente ya no existe.');
-        const freshUpdatedAt = (snap.data().updatedAt as Timestamp | undefined) ?? null;
-        const tFresh = toDate(freshUpdatedAt)?.getTime();
-        const tBase = toDate(baselineUpdatedAt)?.getTime();
-        if (tBase && tFresh && tFresh !== tBase) {
-          throw new Error('Este expediente fue modificado. Ciérralo y vuelve a intentarlo.');
-        }
-        tx.set(ref, { deliveries: nuevasDeliveries, updatedAt: serverTimestamp() }, { merge: true });
-      });
-      
-      await upsertAndresPurchase({
+      if (recordPurchase) await upsertAndresPurchase({
         orderId: order.id,
         // El proveedor real de material (Andres) esta configurado
         // globalmente -- no debe depender de lo que diga order.provider,

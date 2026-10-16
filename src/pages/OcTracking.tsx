@@ -9,8 +9,7 @@ import { EntregasKanban } from '../components/OcTracking/EntregasKanban';
 import { KpiCard, Skeleton, ProgressBar } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 import { escapeHtml, money, getPrintHeaderHtml, shareHtmlAsPdf, nombreClienteVisible, toDate, fmtDate } from '../lib/format';
-import { getOrderSummary, round2, extractCr, inferDepartment } from '../lib/finance';
-import { MARGEN_LIBRE_KG } from '../lib/constants';
+import { inferDepartment } from '../lib/finance';
 import { computeDeliveredTotals } from '../lib/deliveries';
 import { RegistrarEntregaModal } from '../components/Compras/OrderModals';
 import { openWhatsAppMessage, openEmailMessage, generateReclamarKilosAndresMessage } from '../lib/whatsappReminder';
@@ -22,30 +21,11 @@ import { db, PATHS } from '../lib/firebase';
 import { doc, serverTimestamp } from 'firebase/firestore';
 import { safeUpdateDoc } from '../lib/safeFirestore';
 import type { TabName } from '../components/OrderModal/types';
-import type { PurchaseOrder, Invoice, Delivery, OrderStatus } from '../lib/types';
+import type { PurchaseOrder, Delivery } from '../lib/types';
+import {buildOcGroups, type OcGroup} from '../lib/ocTracking';
+import {isProductionTracked} from '../lib/productionTracking';
 import { OcClientStatusReport } from '../components/Orders/OcClientStatusReport';
 
-interface OcGroup {
-  oc: string;
-  order: PurchaseOrder;
-  kilosPedidos: number;
-  kilosEntregados: number;
-  kilosFaltantes: number;
-  kilosFacturados: number;
-  kilosPendientesFacturar: number;
-  totalVentaFacturada: number;
-  statusCategory: 'por_entregar' | 'pendiente_factura' | 'en_cobranza' | 'completada';
-  invoices: {
-    folio: string;
-    kilos: number;
-    amount: number;
-    cr: string;
-    dueDate: Date | null;
-    status: string;
-    paid: boolean;
-    order: PurchaseOrder;
-  }[];
-}
 
 export default function OcTracking() {
   const toast = useToast();
@@ -62,136 +42,17 @@ export default function OcTracking() {
   const [scope, setScope] = useState<'activas' | 'cerradas' | 'todas'>('activas');
   const [subFilter, setSubFilter] = useState<'todas' | 'por_entregar' | 'pendiente_factura' | 'en_cobranza'>('todas');
   const [search, setSearch] = useState('');
+  const [trackingMode, setTrackingMode] = useState<'production' | 'all'>('production');
   const [reportOrder, setReportOrder] = useState<PurchaseOrder | null>(null);
 
-  // Agrupación y cálculo financiero/operativo sin duplicados
-  const allOcGroups = useMemo<OcGroup[]>(() => {
-    // Agrupar órdenes por su clave canónica de OC
-    const ocMap = new Map<string, PurchaseOrder[]>();
+  const allOcGroups = useMemo(() => buildOcGroups(orders), [orders]);
+  const trackingGroups = useMemo(() => trackingMode === 'production' ? allOcGroups.filter(group => isProductionTracked(group.order)) : allOcGroups, [allOcGroups, trackingMode]);
 
-    for (const order of orders) {
-      if (!order || (order as any).isDeleted) continue;
-      const rawOc = (order.oc || order.folio || order.id).trim();
-      const rawFolio = (order.folio || '').trim().toUpperCase();
-      const ocKey = rawOc.toUpperCase();
 
-      // Excluir expediente obsoleto de prueba 120267114014
-      if (ocKey === '120267114014' || rawFolio === '120267114014' || rawFolio === '6167') continue;
-
-      // Excluir expedientes cuyo identificador es exclusivamente un Contrarecibo (viven en Cobranza)
-      if (ocKey.startsWith('TH-') || ocKey.startsWith('GT-') || rawFolio.startsWith('TH-') || rawFolio.startsWith('GT-')) continue;
-      
-      const existing = ocMap.get(ocKey) || [];
-      existing.push(order);
-      ocMap.set(ocKey, existing);
-    }
-
-    const list: OcGroup[] = [];
-
-    for (const [ocKey, groupOrders] of ocMap.entries()) {
-      // Tomar la orden más completa
-      const primaryOrder = groupOrders.reduce((best, curr) => {
-        const bestScore = (best.items?.length || 0) * 10 + (best.invoices?.length || 0) * 5 + (best.deliveries?.length || 0);
-        const currScore = (curr.items?.length || 0) * 10 + (curr.invoices?.length || 0) * 5 + (curr.deliveries?.length || 0);
-        return currScore > bestScore ? curr : best;
-      }, groupOrders[0]);
-
-      // Fusionar facturas y entregas sin duplicados
-      const allInvoicesRaw: Invoice[] = [];
-      const invoiceFolioSet = new Set<string>();
-      for (const ord of groupOrders) {
-        for (const inv of ord.invoices || []) {
-          const key = (inv.folio || inv.id || '').toUpperCase().trim();
-          if (key && !invoiceFolioSet.has(key)) {
-            invoiceFolioSet.add(key);
-            allInvoicesRaw.push(inv);
-          }
-        }
-      }
-
-      const allDeliveriesRaw: Delivery[] = [];
-      const deliveryIdSet = new Set<string>();
-      for (const ord of groupOrders) {
-        for (const del of ord.deliveries || []) {
-          const key = (del.id || `${del.kilos}-${del.date}`).trim();
-          if (key && !deliveryIdSet.has(key)) {
-            deliveryIdSet.add(key);
-            allDeliveriesRaw.push(del);
-          }
-        }
-      }
-
-      const mergedOrder: PurchaseOrder = {
-        ...primaryOrder,
-        invoices: allInvoicesRaw.length > 0 ? allInvoicesRaw : primaryOrder.invoices,
-        deliveries: allDeliveriesRaw.length > 0 ? allDeliveriesRaw : primaryOrder.deliveries,
-      };
-
-      const summary = getOrderSummary(mergedOrder);
-      const itemsKg = (mergedOrder.items || []).reduce((a, it) => a + (Number(it.quantity) || 0), 0);
-      const kilosPedidos = itemsKg > 0 ? itemsKg : (Number(mergedOrder.totalKilograms ?? 0) || Number(summary.kilosDelivered ?? 0));
-      const kilosEntregados = Number(summary.kilosDelivered ?? 0);
-      const kilosFaltantes = mergedOrder.isClosedShort ? 0 : Math.max(0, kilosPedidos - kilosEntregados);
-      const kilosFacturados = Number(summary.kilosInvoiced ?? 0);
-      const kilosPendientesFacturar = (mergedOrder.isClosedShort && kilosFacturados >= kilosEntregados - 0.05) ? 0 : Math.max(0, kilosEntregados - kilosFacturados);
-
-      const invoices = (mergedOrder.invoices ?? []).map(inv => {
-        const st = inv.creditCycle?.status ?? 'pending';
-        return {
-          folio: inv.folio ?? '—',
-          kilos: Number(inv.kilos) || 0,
-          amount: inv.financials?.invoiceTotal ?? inv.financials?.saleTotal ?? 0,
-          cr: extractCr(inv, mergedOrder),
-          dueDate: toDate(inv.creditCycle?.dueDate),
-          status: st,
-          paid: st === 'paid' || st === 'collected',
-          order: mergedOrder,
-        };
-      });
-
-      const totalVentaFacturada = invoices.reduce((acc, i) => acc + i.amount, 0);
-      const allInvoicesPaid = invoices.length > 0 && invoices.every(i => i.paid || i.status === 'collected' || i.status === 'paid');
-      const allDelivered = (kilosPedidos > 0 && kilosEntregados >= kilosPedidos - 0.01) || (kilosPedidos === 0 && kilosEntregados > 0);
-      const ocCreditStatus = mergedOrder.creditCycle?.status ?? ('' as OrderStatus);
-      const isCompleted = ocCreditStatus === 'completed' || Boolean(mergedOrder.isClosedShort && allInvoicesPaid) || ((summary.status === 'collected' || summary.status === 'paid') && allInvoicesPaid && (allDelivered || kilosFaltantes <= 0.01 || Boolean(mergedOrder.isClosedShort)));
-
-      let statusCategory: OcGroup['statusCategory'] = 'en_cobranza';
-      if (isCompleted) {
-        statusCategory = 'completada';
-      } else if (kilosFaltantes > 0.01 && !mergedOrder.isClosedShort) {
-        statusCategory = 'por_entregar';
-      } else if (kilosPendientesFacturar > 0.01) {
-        statusCategory = 'pendiente_factura';
-      } else if (invoices.length > 0 && !allInvoicesPaid) {
-        statusCategory = 'en_cobranza';
-      } else {
-        statusCategory = 'completada';
-      }
-
-      list.push({
-        oc: primaryOrder.oc || primaryOrder.folio || ocKey,
-        order: mergedOrder,
-        kilosPedidos: round2(kilosPedidos),
-        kilosEntregados: round2(kilosEntregados),
-        kilosFaltantes: round2(kilosFaltantes),
-        kilosFacturados: round2(kilosFacturados),
-        kilosPendientesFacturar: round2(kilosPendientesFacturar),
-        totalVentaFacturada: round2(totalVentaFacturada),
-        statusCategory,
-        invoices,
-      });
-    }
-
-    return list.sort((a, b) => {
-      if (a.oc === 'SIN-OC') return 1;
-      if (b.oc === 'SIN-OC') return -1;
-      return b.oc.localeCompare(a.oc);
-    });
-  }, [orders]);
 
   // Grupos filtrados por planta, ámbito y búsqueda
   const { plantGroups, openGroups, closedGroups, filteredGroups } = useMemo(() => {
-    let base = allOcGroups;
+    let base = trackingGroups;
 
     if (plantFilter !== 'ALL') {
       base = base.filter(g => {
@@ -208,6 +69,7 @@ export default function OcTracking() {
         g.oc.toLowerCase().includes(q) ||
         (g.order.client?.toLowerCase() || '').includes(q) ||
         (g.order.folio?.toLowerCase() || '').includes(q) ||
+        (g.order.items || []).some(item => (item.code || '').toLowerCase().includes(q) || (item.description || '').toLowerCase().includes(q)) ||
         g.invoices.some(inv => inv.folio.toLowerCase().includes(q) || inv.cr.toLowerCase().includes(q))
       );
     }
@@ -233,7 +95,7 @@ export default function OcTracking() {
       closedGroups: closed,
       filteredGroups: current,
     };
-  }, [allOcGroups, plantFilter, scope, subFilter, search]);
+  }, [trackingGroups, plantFilter, scope, subFilter, search]);
 
   // KPIs Totales Reales (Sincronizados con la planta seleccionada)
   const kpis = useMemo(() => {
@@ -257,7 +119,7 @@ export default function OcTracking() {
     const deptName = dept === 'TH' ? 'Textil Hogar (Nava)' : 'Grupo Textil (Evelia)';
     const pct = group.kilosPedidos > 0 ? Math.round((group.kilosEntregados / group.kilosPedidos) * 100) : 0;
     const items = group.order.items || [];
-    const deliveries = group.order.deliveries || [];
+    const deliveries = (group.order.deliveries || []).filter(delivery => !delivery.inferredFromInvoice);
     const { deliveredByItem } = computeDeliveredTotals(deliveries, items);
 
     let text = `📦 *REPORTE DE ENTREGA — OC ${group.oc}*\n`;
@@ -293,7 +155,7 @@ export default function OcTracking() {
     const deptName = dept === 'TH' ? 'Textil Hogar (Nava)' : 'Grupo Textil (Evelia)';
     const pct = group.kilosPedidos > 0 ? Math.round((group.kilosEntregados / group.kilosPedidos) * 100) : 0;
     const items = group.order.items || [];
-    const deliveries = group.order.deliveries || [];
+    const deliveries = (group.order.deliveries || []).filter(delivery => !delivery.inferredFromInvoice);
     const { deliveredByItem } = computeDeliveredTotals(deliveries, items);
 
     const subject = `Estatus de Entrega y Fabricación — OC ${group.oc} — ${deptName}`;
@@ -339,7 +201,7 @@ export default function OcTracking() {
       entregadosKg: group.kilosEntregados,
       faltantesKg: group.kilosFaltantes,
       providerName: settings.providerName || 'Andrés',
-      deliveriesCount: (group.order.deliveries || []).length,
+      deliveriesCount: (group.order.deliveries || []).filter(delivery => !delivery.inferredFromInvoice).length,
     });
     openWhatsAppMessage(text);
     toast(`📲 Abriendo WhatsApp para reclamar ${group.kilosFaltantes.toLocaleString('es-MX')} kg faltantes a ${settings.providerName || 'Andrés'}`, 'ok');
@@ -485,7 +347,7 @@ export default function OcTracking() {
           ${pendingOrders.map(g => {
             const order = g.order;
             const items = order.items && order.items.length > 0 ? order.items : [];
-            const deliveries = order.deliveries || [];
+            const deliveries = (order.deliveries || []).filter(delivery => !delivery.inferredFromInvoice);
             const { deliveredByItem } = computeDeliveredTotals(deliveries, items);
             const dept = inferDepartment(order) || (order.department?.toUpperCase().includes('TH') ? 'TH' : order.department?.toUpperCase().includes('GT') ? 'GT' : 'TH');
             const resp = dept === 'TH' ? 'Nava (Textil Hogar)' : 'Evelia (Grupo Textil / P4)';
@@ -701,7 +563,15 @@ export default function OcTracking() {
       </div>
 
       {/* WIDGET DE PROYECCIÓN SEMANAL DE FLUJO DE EFECTIVO */}
-      <CashFlowForecastWidget orders={orders} />
+      <details className="work-callout" style={{marginBottom: 18}}><summary>Consultar proyección de cobranza</summary><CashFlowForecastWidget orders={orders} /></details>
+      <div className="work-callout" style={{marginBottom: 18}}>
+        <strong>Entregas y báscula</strong>
+        <p>El avance físico se acredita con remisiones y pesajes. Una factura no confirma por sí sola que el producto llegó.</p>
+        <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+          <button className={`btn ${trackingMode === 'production' ? 'btn-primary' : ''}`} onClick={() => setTrackingMode('production')}>Producción ({allOcGroups.filter(group => isProductionTracked(group.order)).length})</button>
+          <button className={`btn ${trackingMode === 'all' ? 'btn-primary' : ''}`} onClick={() => setTrackingMode('all')}>Todos los expedientes ({allOcGroups.length})</button>
+        </div>
+      </div>
 
       {/* Selector de Planta Providencia */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
@@ -722,7 +592,7 @@ export default function OcTracking() {
               transition: 'all 0.15s ease',
             }}
           >
-            🌟 Ambas ({allOcGroups.length})
+            🌟 Ambas ({trackingGroups.length})
           </button>
           <button
             className={`btn-small ${plantFilter === 'TH' ? 'btn-primary' : ''}`}
@@ -739,7 +609,7 @@ export default function OcTracking() {
               transition: 'all 0.15s ease',
             }}
           >
-            🟦 TH · Nava ({allOcGroups.filter(g => inferDepartment(g.order) === 'TH' || (g.order.department?.toUpperCase().includes('TH'))).length})
+            🟦 TH · Nava ({trackingGroups.filter(g => inferDepartment(g.order) === 'TH' || (g.order.department?.toUpperCase().includes('TH'))).length})
           </button>
           <button
             className={`btn-small ${plantFilter === 'GT' ? 'btn-primary' : ''}`}
@@ -756,7 +626,7 @@ export default function OcTracking() {
               transition: 'all 0.15s ease',
             }}
           >
-            🟪 GT · Evelia ({allOcGroups.filter(g => inferDepartment(g.order) === 'GT' || (g.order.department?.toUpperCase().includes('GT'))).length})
+            🟪 GT · Evelia ({trackingGroups.filter(g => inferDepartment(g.order) === 'GT' || (g.order.department?.toUpperCase().includes('GT'))).length})
           </button>
         </div>
 
@@ -780,21 +650,13 @@ export default function OcTracking() {
       {/* KPIs Reales Interactivos */}
       <div className="kpi-grid" style={{ marginBottom: 20, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
         <div style={{ cursor: 'pointer' }} onClick={() => { setScope('activas'); setSubFilter('todas'); }}>
-          <KpiCard label="Órdenes Activas" value={`${openGroups.length} de ${allOcGroups.length}`} tone="cash" />
+          <KpiCard label="Órdenes Activas" value={`${openGroups.length} de ${trackingGroups.length}`} tone="cash" />
         </div>
         <div style={{ cursor: 'pointer' }} onClick={() => { setScope('activas'); setSubFilter('por_entregar'); }}>
-          <KpiCard label="Kilos por Surtir" value={`${openGroups.reduce((a, g) => a + g.kilosFaltantes, 0).toLocaleString('es-MX')} kg`} tone="bad" />
+          <KpiCard label="Por entregar o comprobar" value={`${openGroups.reduce((a, g) => a + g.kilosFaltantes, 0).toLocaleString('es-MX')} kg`} tone="bad" />
         </div>
         <div style={{ cursor: 'pointer' }} onClick={() => { setScope('activas'); setSubFilter('pendiente_factura'); }}>
           <KpiCard label="Kilos por Facturar" value={`${kpis.totalPendienteFacturar.toLocaleString('es-MX')} kg`} tone="warn" />
-        </div>
-        <div style={{ cursor: 'pointer' }} onClick={() => setScope('todas')}>
-          <KpiCard 
-            label="💵 Flujo Neto en Caja ($8.44/kg)" 
-            value={money(filteredGroups.reduce((a, g) => a + g.kilosEntregados * MARGEN_LIBRE_KG, 0))} 
-            sub={`Total Cartera: ${money(filteredGroups.reduce((a, g) => a + g.kilosPedidos * MARGEN_LIBRE_KG, 0))}`}
-            tone="ok" 
-          />
         </div>
         <div style={{ cursor: 'pointer' }} onClick={() => setScope('todas')}>
           <KpiCard label="Total Facturado" value={money(kpis.totalFacturadoPesos)} tone="cash" />
@@ -885,10 +747,10 @@ export default function OcTracking() {
 
             if (group.statusCategory === 'completada') {
               statusColor = 'var(--ok)';
-              statusLabel = '✅ Entregada y Cobrada al 100%';
+              statusLabel = '✅ Orden concluida';
             } else if (group.statusCategory === 'por_entregar') {
               statusColor = '#d97706';
-              statusLabel = `🚚 Faltan ${group.kilosFaltantes.toLocaleString('es-MX')} kg por surtir`;
+              statusLabel = `🚚 ${group.kilosFaltantes.toLocaleString('es-MX')} kg por entregar o comprobar`;
             } else if (group.statusCategory === 'pendiente_factura') {
               statusColor = 'var(--warn)';
               statusLabel = `📦 ${group.kilosPendientesFacturar.toLocaleString('es-MX')} kg listos para Facturar`;
@@ -898,7 +760,7 @@ export default function OcTracking() {
             }
 
             const items = group.order.items || [];
-            const deliveries = group.order.deliveries || [];
+            const deliveries = (group.order.deliveries || []).filter(delivery => !delivery.inferredFromInvoice);
             const { deliveredByItem } = computeDeliveredTotals(deliveries, items);
 
             return (
@@ -939,7 +801,7 @@ export default function OcTracking() {
 
                     <div style={{ fontSize: 12, marginTop: 8, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                       <div style={{ background: 'var(--paper-sunk)', padding: '4px 8px', borderRadius: 6 }}>
-                        <span style={{ color: 'var(--ink-soft)' }}>📋 Contratado (OC):</span> <strong>{group.kilosPedidos.toLocaleString('es-MX')} kg</strong>
+                        <span style={{ color: 'var(--ink-soft)' }}>📋 {group.order.orderDocumentPending ? 'Meta por comprobar:' : 'Contratado (OC):'}</span> <strong>{group.kilosPedidos.toLocaleString('es-MX')} kg</strong>
                       </div>
                       <div style={{ background: 'var(--paper-sunk)', padding: '4px 8px', borderRadius: 6 }}>
                         <span style={{ color: group.kilosEntregados >= group.kilosPedidos && group.kilosPedidos > 0 ? 'var(--ok)' : 'var(--ink)' }}>🚚 Entregado (Báscula):</span>{' '}
@@ -948,7 +810,7 @@ export default function OcTracking() {
                         </strong>
                       </div>
                       <div style={{ background: 'var(--paper-sunk)', padding: '4px 8px', borderRadius: 6 }}>
-                        <span style={{ color: 'var(--ink-soft)' }}>🧾 Facturado (SAT):</span> <strong>{group.kilosFacturados.toLocaleString('es-MX')} kg</strong>
+                        <span style={{ color: 'var(--ink-soft)' }}>🧾 Kilos en facturas capturadas:</span> <strong>{group.kilosFacturados.toLocaleString('es-MX')} kg</strong>
                       </div>
                       {group.order.isClosedShort ? (
                         <div style={{ background: 'rgba(16,185,129,0.12)', color: '#047857', padding: '4px 8px', borderRadius: 6, fontWeight: 800 }}>
@@ -956,7 +818,7 @@ export default function OcTracking() {
                         </div>
                       ) : group.kilosFaltantes > 0.01 ? (
                         <div style={{ background: 'rgba(239,68,68,0.12)', color: '#b91c1c', padding: '4px 8px', borderRadius: 6, fontWeight: 800 }}>
-                          🚨 Restan por Surtir: {group.kilosFaltantes.toLocaleString('es-MX')} kg
+                          Pendientes de entrega o comprobación: {group.kilosFaltantes.toLocaleString('es-MX')} kg
                         </div>
                       ) : null}
                       {group.kilosPendientesFacturar > 0.01 && (
@@ -971,6 +833,8 @@ export default function OcTracking() {
                       )}
                     </div>
 
+                    {group.order.orderDocumentPending && <p className="alert warn">Falta la OC original con sus partidas. Completa el documento antes de registrar una entrega.</p>}
+                    {group.invoices.some(invoice => !invoice.kilos) && <p style={{fontSize: 12, color: 'var(--ink-soft)'}}>Hay facturas sin conceptos o kilos comprobados. Completa su XML o PDF en el expediente.</p>}
                     {group.kilosPedidos > 0 && (
                       <div style={{ marginTop: 10, maxWidth: 360 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4, color: 'var(--ink-soft)', fontWeight: 600 }}>
@@ -985,19 +849,14 @@ export default function OcTracking() {
                   <div style={{ textAlign: 'right', minWidth: 150 }}>
                     <div style={{ fontSize: 11, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Monto Facturado</div>
                     <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--ink)' }}>{money(group.totalVentaFacturada)}</div>
-                    <div style={{ fontSize: 11, color: '#059669', marginTop: 4, fontWeight: 800, background: 'rgba(16, 185, 129, 0.1)', padding: '2px 8px', borderRadius: 6, display: 'inline-block' }}>
-                      💵 Flujo: {money(group.kilosEntregados * MARGEN_LIBRE_KG)}
-                      <span style={{ fontSize: 10, color: 'var(--ink-soft)', fontWeight: 600, marginLeft: 4 }}>
-                        / {money(group.kilosPedidos * MARGEN_LIBRE_KG)}
-                      </span>
-                    </div>
                     <div style={{ fontSize: 11, color: statusColor, marginTop: 4, fontWeight: 700, background: 'var(--paper-sunk)', padding: '2px 8px', borderRadius: 10, display: 'block' }}>
                       {statusLabel}
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', gap: 6, marginLeft: 10, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
-                    {group.statusCategory !== 'completada' && (
+                    {group.order.orderDocumentPending && <button className="btn" onClick={event => {event.stopPropagation();navigate('/archivo-documentos');}}>Completar OC original</button>}
+                    {group.statusCategory !== 'completada' && isProductionTracked(group.order) && !group.order.orderDocumentPending && (
                       <button
                         className="btn"
                         style={{ fontSize: 11.5, padding: '6px 10px', background: 'rgba(16, 185, 129, 0.12)', color: '#047857', border: '1px solid #10b981', fontWeight: 800 }}
@@ -1024,7 +883,7 @@ export default function OcTracking() {
                         ⚡ Facturar
                       </button>
                     )}
-                    {group.kilosFaltantes > 0.01 && !group.order.isClosedShort && (
+                    {group.kilosFaltantes > 0.01 && !group.order.isClosedShort && !group.order.orderDocumentPending && (
                       <>
                         <button
                           type="button"
@@ -1172,10 +1031,10 @@ export default function OcTracking() {
                       )}
 
                       {/* Tabla de Entregas en Báscula & Vales */}
-                      {(group.order.deliveries || []).length > 0 && (
+                      {(group.order.deliveries || []).filter(delivery => !delivery.inferredFromInvoice).length > 0 && (
                         <div style={{ marginBottom: 16 }}>
                           <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink)', textTransform: 'uppercase', marginBottom: 6 }}>
-                            ⚖️ Pesajes & Entregas en Báscula ({(group.order.deliveries || []).length}):
+                            ⚖️ Pesajes & Entregas en Báscula ({(group.order.deliveries || []).filter(delivery => !delivery.inferredFromInvoice).length}):
                           </div>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, background: 'var(--paper)', borderRadius: 8, overflow: 'hidden' }}>
                             <thead>
@@ -1188,7 +1047,7 @@ export default function OcTracking() {
                               </tr>
                             </thead>
                             <tbody>
-                              {(group.order.deliveries || []).map((del, dIdx) => (
+                              {(group.order.deliveries || []).filter(delivery => !delivery.inferredFromInvoice).map((del, dIdx) => (
                                 <tr key={del.id || dIdx} style={{ borderTop: '1px solid var(--line-soft)' }}>
                                   <td style={{ padding: '8px 12px' }}>{del.date ? fmtDate(toDate(del.date)) : '—'}</td>
                                   <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 800, color: '#10b981' }}>

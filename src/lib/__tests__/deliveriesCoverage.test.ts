@@ -194,7 +194,7 @@ describe('Deliveries Engine Unit Tests', () => {
       items: [
         { id: 'i1', code: 'C1', description: 'Desc', quantity: 1000, unitPrice: 43, amount: 43000, unit: 'KGM', deliveredQuantity: 500 },
       ],
-      deliveries: [],
+      deliveries: undefined,
       invoices: [],
       creditCycle: { status: 'pedido' },
     };
@@ -207,7 +207,7 @@ describe('Deliveries Engine Unit Tests', () => {
     expect(migratedFromItems).toHaveLength(1);
     expect(migratedFromItems[0].kilos).toBe(500);
 
-    // Si no tiene deliveredQuantity pero tiene facturas
+    // Una factura sin remisión no demuestra la entrega física.
     const orderOnlyInvoices: PurchaseOrder = {
       ...order,
       items: [{ id: 'i1', code: 'C1', description: 'Desc', quantity: 1000, unitPrice: 43, amount: 43000, unit: 'KGM' }],
@@ -216,9 +216,8 @@ describe('Deliveries Engine Unit Tests', () => {
       ],
     };
     const migratedFromInvoices = migrateLegacyDeliveries(orderOnlyInvoices, []);
-    expect(migratedFromInvoices).toHaveLength(1);
-    expect(migratedFromInvoices[0].kilos).toBe(800);
-    expect(migratedFromInvoices[0].invoiced).toBe(true);
+    expect(migratedFromInvoices).toEqual([]);
+    expect(migrateLegacyDeliveries({...order, deliveries: []}, [])).toEqual([]);
 
     // Si orden completamente vacía
     const emptyOrder: PurchaseOrder = {

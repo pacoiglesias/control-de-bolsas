@@ -10,6 +10,7 @@ import { useSystemSettings } from '../hooks/useSystemSettings';
 import { usePrivacy } from '../context/PrivacyContext';
 import { useTheme } from '../context/ThemeContext';
 import { getOrderSummary, round2 } from '../lib/finance';
+import { summarizeProduction } from '../lib/productionTracking';
 import { sound } from '../lib/sounds';
 import { OnlineUsers } from './OnlineUsers';
 import { OverdueBanner } from './OverdueBanner';
@@ -178,7 +179,7 @@ export default function Layout() {
     let overdue = 0;
     let review = 0;
     let unbilledOrdersCount = 0;
-    let activeOcsCount = 0;
+    const activeOcsCount = summarizeProduction(orders).count;
     for (const o of orders) {
       const summary = getOrderSummary(o);
       const st = summary.status;
@@ -186,10 +187,6 @@ export default function Layout() {
       else if (st === 'manual_review') review++;
       if (summary.kilosDelivered > summary.kilosInvoiced + 0.01 && !o.isClosedShort) {
         unbilledOrdersCount++;
-      }
-      const isCompleted = summary.status === 'completed' || summary.status === 'paid' || summary.status === 'collected';
-      if (!isCompleted && !o.isClosedShort) {
-        activeOcsCount++;
       }
     }
     const saldoCaja = round2(

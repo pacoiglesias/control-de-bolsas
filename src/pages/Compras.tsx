@@ -492,7 +492,7 @@ export default function Compras() {
       )}
       {pagarModalAmount !== null && <PagarAndresModal initialAmount={pagarModalAmount} onClose={() => setPagarModalAmount(null)} />}
       {ajusteModal && <AjusteModal selectedProvider={selectedProvider} onClose={() => setAjusteModal(false)} />}
-      {deliveryOrder && <RegistrarEntregaModal order={deliveryOrder} onClose={() => setDeliveryOrder(null)} costPricePerKg={currentCostPerKg} />}
+      {deliveryOrder && <RegistrarEntregaModal order={deliveryOrder} onClose={() => setDeliveryOrder(null)} costPricePerKg={currentCostPerKg} recordPurchase />}
     </>
   );
 }

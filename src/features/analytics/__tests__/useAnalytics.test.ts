@@ -19,6 +19,14 @@ function crearOrdenMock(parcial: Partial<PurchaseOrder>): PurchaseOrder {
 }
 
 describe('useAnalytics / computeAnalytics', () => {
+  it('los kilos de ventas vienen de facturas y no del avance físico de báscula', () => {
+    const order = crearOrdenMock({createdAt:'2026-10-16T12:00:00Z',deliveries:[{id:'d',date:null,kilos:100}],
+      invoices:[{id:'f',orderId:'o',kilos:500,financials:computeFinancials(500,cfg),creditCycle:{status:'facturado'}}]});
+    const result = computeAnalytics([order]);
+    expect(result.kpiGlobal.totalKilos).toBe(500);
+    expect(result.ventasPorMes[0].kilos).toBe(500);
+    expect(result.rentabilidadCliente[0].kilos).toBe(500);
+  });
   it('maneja listas vacías sin errores retornando KPIs en cero', () => {
     const res = computeAnalytics([]);
     expect(res.ventasPorMes).toEqual([]);

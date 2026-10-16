@@ -3,73 +3,38 @@ import { useConfig } from '../../hooks/useConfig';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOrders } from '../../hooks/useOrders';
-import { useExpenses } from '../../hooks/useExpenses';
 import { usePrivacy } from '../../context/PrivacyContext';
 import { money } from '../../lib/format';
-import { getOrderSummary, round2 } from '../../lib/finance';
+import { round2 } from '../../lib/finance';
+import { summarizeProduction } from '../../lib/productionTracking';
 import { sound } from '../../lib/sounds';
 import { triggerHaptic } from '../../lib/hapticEngine';
 
 export function SidebarLiveStatus() {
   const { orders } = useOrders();
   const { config } = useConfig();
-  const { expenses } = useExpenses();
   const { isPrivate } = usePrivacy();
   const navigate = useNavigate();
 
   // Métricas en tiempo real de la operación
   const metrics = useMemo(() => {
-    let activeOcsCount = 0;
-    let totalKilosPedidos = 0;
-    let totalKilosEntregados = 0;
-
-
-
-    for (const o of orders) {
-      if (o.isDeleted) continue;
-      const summary = getOrderSummary(o);
-      const isCompleted = summary.status === 'completed' || summary.status === 'paid' || summary.status === 'collected';
-      
-      if (!isCompleted && !o.isClosedShort) {
-        activeOcsCount++;
-        const pedidos = Number(o.totalKilograms) || Number(summary.kilosDelivered) || 0;
-        const entregados = Number(summary.kilosDelivered) || 0;
-        totalKilosPedidos += pedidos;
-        totalKilosEntregados += entregados;
-      }
-
-    }
+    const production = summarizeProduction(orders);
     const receivables = buildReceivables(orders, config);
     const carteraTotal = receivables.total;
     const carteraVencida = receivables.overdue;
 
-    const saldoCaja = round2(
-      (expenses || []).reduce((acc, e) => {
-        return acc + (e.type === 'ingreso' ? Number(e.amount) || 0 : -(Number(e.amount) || 0));
-      }, 0)
-    );
-
-    const kilosFaltantes = Math.max(0, totalKilosPedidos - totalKilosEntregados);
-    const avanceEntregaPct = totalKilosPedidos > 0 
-      ? Math.min(100, Math.round((totalKilosEntregados / totalKilosPedidos) * 100))
-      : 100;
-
     return {
-      activeOcsCount,
-      totalKilosPedidos,
-      totalKilosEntregados,
-      kilosFaltantes,
-      avanceEntregaPct,
+      activeOcsCount: production.count,
+      kilosFaltantes: production.remaining,
       carteraTotal: round2(carteraTotal),
       carteraVencida: round2(carteraVencida),
-      saldoCaja,
     };
-  }, [orders, expenses, config]);
+  }, [orders, config]);
 
   return <div className="sidebar-balance">
     <span>FACTURADO POR COBRAR</span>
     <button type="button" onClick={() => navigate('/cobranza')}>{isPrivate ? '••••••' : money(metrics.carteraTotal)} <span aria-hidden="true">↗</span></button>
-    <small>{metrics.activeOcsCount} órdenes activas · {metrics.kilosFaltantes.toLocaleString('es-MX')} kg por entregar</small>
+    <small>{metrics.activeOcsCount} órdenes de producción · {metrics.kilosFaltantes.toLocaleString('es-MX')} kg por entregar o comprobar</small>
   </div>;
 }
 
