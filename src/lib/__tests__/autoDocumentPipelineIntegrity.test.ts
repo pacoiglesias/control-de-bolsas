@@ -33,6 +33,7 @@ vi.mock('firebase/firestore', async () => {
       const mockTxn = {
         get: vi.fn(async (docRef: any) => ({
           exists: () => {
+            if (docRef?.path?.startsWith('invoices/')) return false;
             if (docRef?.path?.includes('payment_receipts')) return false;
             return true;
           },

@@ -1,4 +1,5 @@
 import { ProvidenciaPaymentRows } from './ProvidenciaPaymentRows';
+import { registerImportedInvoice } from '../../lib/registerImportedInvoice';
 import { parseProvidenciaEvidence } from '../../lib/providenciaEvidence';
 import type { ParsedProvidenciaPaymentData } from '../../lib/providenciaPortalParser';
 import { analyzeDocumentFast, applyDocumentFast } from '../../lib/autoDocumentPipeline';
@@ -613,28 +614,7 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
           return;
         }
 
-        // Crear remisión complementaria si no existía entrega
-        const existingDeliveries = selectedOrder.deliveries || [];
-        const updatedDeliveries = [...existingDeliveries];
-
-        if (numKilos > 0) {
-          updatedDeliveries.push({
-            id: `del-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            date: safeDate,
-            kilos: numKilos,
-            notes: `Entrega física amparada por Factura #${newInvoice.folio} (${numKilos.toLocaleString('es-MX')} kg)`,
-            invoiced: true,
-            invoiceId: newInvoice.id,
-            docType: 'factura',
-            docFolio: newInvoice.folio,
-          });
-        }
-
-        await safeUpdateDoc(orderRef, {
-          invoices: cleanUndefined([...existingInvoices, newInvoice]),
-          deliveries: cleanUndefined(updatedDeliveries),
-          updatedAt: Timestamp.now(),
-        });
+        await registerImportedInvoice(selectedOrder.id, newInvoice);
 
         // Guardar PDF/XML original en Firebase Storage
         try {

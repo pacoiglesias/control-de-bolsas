@@ -1,2 +1,2 @@
-export { scheduledMidnightBackup, updateCajaChicaBalance } from "./handlers";
+export { scheduledMidnightBackup } from "./handlers";
 export { checkDeadlines } from "./notifications";

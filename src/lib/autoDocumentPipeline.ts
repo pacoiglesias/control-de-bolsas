@@ -21,6 +21,7 @@ import type { ParsedProvidenciaPaymentData } from './providenciaPortalParser';
  */
 
 import { Timestamp, doc, serverTimestamp, runTransaction, writeBatch } from 'firebase/firestore';
+import { registerImportedInvoice } from './registerImportedInvoice';
 import { auth, db, PATHS } from './firebase';
 import { safeUpdateDoc } from './safeFirestore';
 import { cleanUndefined } from './cleanUndefined';
@@ -1554,19 +1555,7 @@ export async function applyDocumentFast(
       oc: targetOrder.oc || targetOrder.folio || '',
     };
 
-    const existingInvoices = targetOrder.invoices || [];
-    const existingDeliveries = targetOrder.deliveries || [];
-    const updatedDeliveries = [...existingDeliveries];
-
-    // A CFDI proves invoicing; physical delivery requires its own remisión/báscula.
-
-    if (orderRef) {
-      await safeUpdateDoc(orderRef, {
-        invoices: cleanUndefined([...existingInvoices, newInvoice]),
-        deliveries: cleanUndefined(updatedDeliveries),
-        updatedAt: serverTimestamp(),
-      });
-    }
+    await registerImportedInvoice(targetOrder.id, newInvoice);
 
     let storageWarning = false;
     try {
