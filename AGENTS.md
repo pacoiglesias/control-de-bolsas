@@ -22,6 +22,8 @@ Este sistema administra la operación industrial, logística de báscula, maquil
 2. **Órdenes de Compra (OCs) Activas Oficiales:**
    * **GT (Grupo Textil Providencia — Lic. Evelia Castillo / Almacén P4):**
      * **OC Oficial:** `12026439784` (Folio: `43/9784` · Meta: `5,100.00 kg`).
+     * **OC Oficial:** `12026439806` (Folio: `43/9806` · Meta: `2,500.00 kg` · Entregados: `2,478.35 kg` · Pendiente Facturar: `2,478.35 kg`).
+     * **OC Oficial:** `12026439807` (Folio: `43/9807` · Meta: `3,000.00 kg` · Entregados: `2,955.80 kg` · Pendiente Facturar: `2,955.80 kg`).
    * **TH (Textil Hogar — Ing. José Nava Flores / Almacén 1):**
      * **OC Oficial:** `120267114302` (Folio: `71/14302` · Meta: `8,000.00 kg`).
 

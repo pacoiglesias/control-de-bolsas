@@ -272,6 +272,17 @@ export const CANONICAL_GT_ITEMS_439753: PurchaseOrderItem[] = [
   { id: 'it-gt-9753-4', code: 'EGBO000094-SC', description: 'BOLSA POLIETILENO 100 X 125 CM  _Sin Color', quantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
 ];
 
+export const CANONICAL_GT_ITEMS_439806: PurchaseOrderItem[] = [
+  { id: 'item-9806-1', code: 'EGBO000017-SC', description: 'BOLSA POLIETILENO 1.20 M X 1.60 M _Sin Color', quantity: 1000, deliveredQuantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'KGM' },
+  { id: 'item-9806-2', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 CM _Sin Color', quantity: 1500, deliveredQuantity: 1478.35, unitPrice: 43.0, amount: 64500, unit: 'KGM' },
+];
+
+export const CANONICAL_GT_ITEMS_439807: PurchaseOrderItem[] = [
+  { id: 'item-9807-1', code: 'EGBO000018-SC', description: 'BOLSA POLIETILENO 1.00 M X 1.15 M _Sin Color', quantity: 1000, deliveredQuantity: 1000, unitPrice: 43.0, amount: 43000, unit: 'KGM' },
+  { id: 'item-9807-2', code: 'EGBO000094-SC', description: 'BOLSA POLIETILENO 100 X 125 CM _Sin Color', quantity: 1000, deliveredQuantity: 987, unitPrice: 43.0, amount: 43000, unit: 'KGM' },
+  { id: 'item-9807-3', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM _Sin Color', quantity: 1000, deliveredQuantity: 968.80, unitPrice: 43.0, amount: 43000, unit: 'KGM' },
+];
+
 export const CANONICAL_GT_ITEMS_439784: PurchaseOrderItem[] = [
   { id: 'it-gt-9784-1', code: 'EGBO000017-SC', description: 'BOLSA POLIETILENO 1.20 M X 1.60 M (80+20+20x160)', quantity: 600, deliveredQuantity: 600, unitPrice: 43.0, amount: 25800, unit: 'Kilos' },
   { id: 'it-gt-9784-2', code: 'EGBO000095-SC', description: 'BOLSA POLIETILENO 120X 125 CM (80+20+20X125)', quantity: 1500, deliveredQuantity: 750, unitPrice: 43.0, amount: 64500, unit: 'Kilos' },

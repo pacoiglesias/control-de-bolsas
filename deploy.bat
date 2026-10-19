@@ -46,7 +46,7 @@ if %ERRORLEVEL% EQU 0 (
 
 echo.
 echo =========================================
-echo  STEP 4/5 — Firebase Deploy (Hosting + Firestore + Storage)
+echo  STEP 4/6 — Firebase Deploy (Hosting + Firestore + Storage)
 echo =========================================
 call npx firebase deploy --only hosting,firestore,storage
 if %ERRORLEVEL% NEQ 0 (
@@ -57,7 +57,18 @@ echo [OK] Firebase deploy completado.
 
 echo.
 echo =========================================
-echo  STEP 5/5 — Git Push (respaldo remoto)
+echo  STEP 5/6 — App Engine Deploy (Mirror SPA en Google Cloud)
+echo =========================================
+call gcloud app deploy app.yaml --project=control-de-bolsas-89c88 --quiet --version=v9-15-3
+if %ERRORLEVEL% NEQ 0 (
+    echo [WARN] App Engine deploy fallo — el hosting principal sigue activo.
+) else (
+    echo [OK] App Engine deploy completado.
+)
+
+echo.
+echo =========================================
+echo  STEP 6/6 — Git Push (respaldo remoto)
 echo =========================================
 git push origin main
 if %ERRORLEVEL% NEQ 0 (
@@ -69,8 +80,9 @@ if %ERRORLEVEL% NEQ 0 (
 echo.
 echo =========================================
 echo  PIPELINE COMPLETO - SISTEMA EN PRODUCCION
-echo  🌐 Principal: [https://bolsas.cobertores.com](https://bolsas.cobertores.com)
-echo  ⚡ Mirror 69:  https://control-de-bolsas-69.web.app
-echo  ☁️ Mirror 89:  https://control-de-bolsas-89c88.web.app
+echo  🌐 Principal:   [https://bolsas.cobertores.com](https://bolsas.cobertores.com)
+echo  ⚡ Firebase 69: https://control-de-bolsas-69.web.app
+echo  ☁️ Firebase 89: https://control-de-bolsas-89c88.web.app
+echo  🚀 App Engine:  https://control-de-bolsas-89c88.uc.r.appspot.com
 echo =========================================
 endlocal
