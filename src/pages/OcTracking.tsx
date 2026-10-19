@@ -1059,7 +1059,21 @@ export default function OcTracking() {
                                     {(del as any).bags || '—'}
                                   </td>
                                   <td style={{ padding: '8px 12px', color: 'var(--ink-soft)' }}>
-                                    {del.notes || 'Entrega física en planta'}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                      <span>{del.notes || 'Entrega física en planta'}</span>
+                                      {del.invoiced ? (
+                                        <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(16,185,129,0.12)', color: '#059669', fontWeight: 700 }}>✅ Facturada</span>
+                                      ) : (() => {
+                                        const dDate = toDate(del.date);
+                                        const days = dDate ? Math.max(0, Math.floor((Date.now() - dDate.getTime()) / (1000 * 60 * 60 * 24))) : null;
+                                        const isOld = days !== null && days >= 3;
+                                        return (
+                                          <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: isOld ? 'rgba(220,38,38,0.14)' : 'rgba(245,158,11,0.15)', color: isOld ? '#dc2626' : '#b45309', fontWeight: 700 }}>
+                                            📝 Sin facturar{days !== null ? ` (+${days}d)` : ''}
+                                          </span>
+                                        );
+                                      })()}
+                                    </div>
                                   </td>
                                   <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                                     <button

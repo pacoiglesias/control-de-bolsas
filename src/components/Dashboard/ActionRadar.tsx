@@ -23,7 +23,7 @@ interface ActionRadarProps {
 
 export type UrgentAction = {
   id: string;
-  type: 'sin_facturar' | 'cr_vencido' | 'contador_listo' | 'andres_atraso';
+  type: 'sin_facturar' | 'cr_vencido' | 'contador_listo' | 'andres_atraso' | 'tolerancia_cierre';
   priority: 'alta' | 'media' | 'baja';
   title: string;
   subtitle: string;
@@ -37,6 +37,14 @@ export type UrgentAction = {
 
 export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: ActionRadarProps) {
   const toast = useToast();
+  const [closingOrder, setClosingOrder] = useState<PurchaseOrder | null>(null);
+  const [showFulfillmentReport, setShowFulfillmentReport] = useState(false);
+
+  const handleConcluirOc = (order: PurchaseOrder) => {
+    triggerHaptic('light');
+    setClosingOrder(order);
+  };
+
   const actions = useMemo<UrgentAction[]>(() => {
     const saleKg = config?.salePricePerKg || 0;
     const costKg = config?.costPricePerKg || 0;
@@ -52,6 +60,26 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
       const kilosEntregados = summary.kilosDelivered;
       const kilosFacturados = summary.kilosInvoiced;
       const invoices = o.invoices || [];
+
+      // Tolerancia operativa: < 2% faltante o <= 50 kg de variación de báscula
+      const itemsSum = (o.items || []).reduce((acc, it) => acc + (Number(it.quantity) || 0), 0);
+      const pedidosKg = itemsSum > 0 ? itemsSum : (Number(o.totalKilograms) || 0);
+      const faltantesKg = Math.max(0, pedidosKg - kilosEntregados);
+      if (pedidosKg > 0 && faltantesKg > 0.01 && (faltantesKg <= 50 || (faltantesKg / pedidosKg) <= 0.02)) {
+        const pct = Math.round((kilosEntregados / pedidosKg) * 100);
+        list.push({
+          id: `tolerancia_${o.id}`,
+          type: 'tolerancia_cierre',
+          priority: 'media',
+          title: `OC ${o.oc || o.folio || 'S/N'}: ${pct}% cumplido (${fmtKilos(faltantesKg)} kg merma tolerable)`,
+          subtitle: `${clientName} — Entregados ${fmtKilos(kilosEntregados)} de ${fmtKilos(pedidosKg)} kg. Faltante < 2% dentro de tolerancia de báscula.`,
+          badge: 'Tolerancia',
+          badgeColor: '#10b981',
+          kilos: faltantesKg,
+          actionLabel: '🏁 Concluir Orden',
+          onClick: () => handleConcluirOc(o),
+        });
+      }
 
       // 1. Entregas en Providencia sin Facturar
       if (kilosEntregados > kilosFacturados + 0.01) {
@@ -248,14 +276,6 @@ export function ActionRadar({ orders, purchases, config, nav, onOpenOrder }: Act
     });
     openWhatsAppMessage(text);
     toast(`📲 Abriendo WhatsApp con reporte semanal para Andrés (${andresSummary.totalKilosFaltantes.toLocaleString('es-MX')} kg pendientes)`, 'ok');
-  };
-
-  const [closingOrder, setClosingOrder] = useState<PurchaseOrder | null>(null);
-  const [showFulfillmentReport, setShowFulfillmentReport] = useState(false);
-
-  const handleConcluirOc = (order: PurchaseOrder) => {
-    triggerHaptic('light');
-    setClosingOrder(order);
   };
 
   return (

@@ -527,7 +527,25 @@ export default function TabEntregas() {
                           {d.invoiced ? (
                             <span className="badge" style={{ background: 'var(--ok)' }}>✅ Facturada</span>
                           ) : (
-                            <span className="badge" style={{ background: 'var(--warn)' }}>📝 Pendiente de facturar</span>
+                            (() => {
+                              const delDate = d.date ? (typeof d.date.toDate === 'function' ? d.date.toDate() : new Date(d.date)) : null;
+                              const daysDiff = delDate ? Math.max(0, Math.floor((Date.now() - delDate.getTime()) / (1000 * 60 * 60 * 24))) : null;
+                              const isAging = daysDiff !== null && daysDiff >= 3;
+                              return (
+                                <span
+                                  className="badge"
+                                  style={{
+                                    background: isAging ? '#dc2626' : 'var(--warn)',
+                                    color: '#fff',
+                                    fontWeight: 700,
+                                    boxShadow: isAging ? '0 1px 4px rgba(220,38,38,0.35)' : undefined,
+                                  }}
+                                  title={daysDiff !== null ? `Entregado hace ${daysDiff} día(s) en planta sin timbrado CFDI` : undefined}
+                                >
+                                  📝 Sin facturar {daysDiff !== null ? `(+${daysDiff}d)` : ''}
+                                </span>
+                              );
+                            })()
                           )}
                           <strong className="mono" style={{ fontSize: 13 }}>{kilosDeEsta.toLocaleString('es-MX')} kg</strong>
                         </div>
