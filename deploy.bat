@@ -58,8 +58,10 @@ echo [OK] Firebase deploy completado.
 echo.
 echo =========================================
 echo  STEP 5/6 — App Engine Deploy (Mirror SPA en Google Cloud)
-echo =========================================
-call gcloud app deploy app.yaml --project=control-de-bolsas-89c88 --quiet --version=v9-15-3
+for /f "tokens=*" %%v in ('node -e "console.log(require('./package.json').version.replace(/\./g, '-'))"') do set APP_VERSION=v%%v
+if "%APP_VERSION%"=="" set APP_VERSION=v9-15-4
+echo [INFO] Desplegando version App Engine: %APP_VERSION%
+call gcloud app deploy app.yaml --project=control-de-bolsas-89c88 --quiet --version=%APP_VERSION%
 if %ERRORLEVEL% NEQ 0 (
     echo [WARN] App Engine deploy fallo — el hosting principal sigue activo.
 ) else (

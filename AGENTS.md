@@ -25,7 +25,7 @@ Este sistema administra la operación industrial, logística de báscula, maquil
      * **OC Oficial:** `12026439806` (Folio: `43/9806` · Meta: `2,500.00 kg` · Entregados: `2,478.35 kg` · Pendiente Facturar: `2,478.35 kg`).
      * **OC Oficial:** `12026439807` (Folio: `43/9807` · Meta: `3,000.00 kg` · Entregados: `2,955.80 kg` · Pendiente Facturar: `2,955.80 kg`).
    * **TH (Textil Hogar — Ing. José Nava Flores / Almacén 1):**
-     * **OC Oficial:** `120267114302` (Folio: `71/14302` · Meta: `8,000.00 kg`).
+     * **OC Oficial:** `120267114302` (Folio: `71/14302` · Meta: `8,000.00 kg` · Facturados: `5,901.00 kg` / 73.8% · F-6392 amparada por 915.00 kg / $45,640.20 MXN / UUID B3392FF2-F596-4A8A-96F3-9219BBEEC369).
 
 ---
 
