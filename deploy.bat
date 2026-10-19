@@ -48,7 +48,7 @@ echo.
 echo =========================================
 echo  STEP 4/5 — Firebase Deploy (Hosting + Firestore + Storage + Functions)
 echo =========================================
-call npx firebase deploy --only hosting,firestore,storage,functions
+call npx firebase deploy --only hosting,firestore,storage
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] Firebase deploy fallo.
     exit /b 1
