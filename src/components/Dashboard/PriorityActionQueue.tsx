@@ -20,7 +20,41 @@ interface Props {
   onOpenQuickDelivery?: (orderId?: string | null) => void;
 }
 
-export function PriorityActionQueue({ orders, onOpenQuickInvoice, onOpenQuickDelivery }: Props) {
+/** Calcula kg y monto total pendientes de facturar en tiempo real. */
+function usePendingInvoiceSummary(orders: PurchaseOrder[], config: FinancialConfig) {
+  return useMemo(() => {
+    const saleKg = config?.salePricePerKg || 43;
+    const ivaRate = config?.ivaRate || 0.16;
+    let totalKg = 0;
+    let totalAmount = 0;
+    const pendingOrders: PurchaseOrder[] = [];
+
+    for (const o of orders) {
+      if ((o as any).isDeleted || o.isClosedShort) continue;
+      const delivered = (o.deliveries ?? [])
+        .filter((d: any) => !d.inferredFromInvoice)
+        .reduce((s: number, d: any) => {
+          const items = (d.items ?? []).reduce((si: number, it: any) => si + (Number(it.quantity) || 0), 0);
+          return s + (items > 0 ? items : Number(d.kilos) || 0);
+        }, 0);
+      const invoiced = (o.invoices ?? []).reduce((s, inv) => s + (Number(inv.kilos) || 0), 0);
+      const pending = Math.max(0, delivered - invoiced);
+      if (pending > 0.01) {
+        const price = (o as any).customSellPrice ?? o.financials?.salePricePerKg ?? saleKg;
+        totalKg += pending;
+        totalAmount += pending * price * (1 + ivaRate);
+        pendingOrders.push(o);
+      }
+    }
+    return {
+      totalKg: Math.round(totalKg * 100) / 100,
+      totalAmount: Math.round(totalAmount * 100) / 100,
+      pendingOrders,
+    };
+  }, [orders, config]);
+}
+
+export function PriorityActionQueue({ orders, config, onOpenQuickInvoice, onOpenQuickDelivery }: Props) {
   const nav = useNavigate();
   const { role } = useAuth();
   const canOperate = role === 'admin' || role === 'manager';
@@ -41,8 +75,66 @@ export function PriorityActionQueue({ orders, onOpenQuickInvoice, onOpenQuickDel
     const invoice = task.invoiceId ? '&factura=' + encodeURIComponent(task.invoiceId) : '';
     nav('/ordenes?abrir=' + encodeURIComponent(task.orderId) + '&tab=' + (task.category === 'delivery' || task.needsReview ? 'entregas' : 'facturas') + invoice);
   };
+
+  // Banner urgente: remisiones entregadas pendientes de facturar
+  const { totalKg, totalAmount, pendingOrders } = usePendingInvoiceSummary(orders, config);
+  const showUrgentBanner = totalKg > 0.01;
+
   return (
     <section className="work-panel" aria-labelledby="work-title">
+      {/* ⚠️ Banner urgente: remisiones entregadas sin factura */}
+      {showUrgentBanner && (
+        <div
+          role="alert"
+          aria-live="polite"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+            padding: '14px 24px',
+            background: 'linear-gradient(90deg, rgba(239,68,68,0.12) 0%, rgba(245,158,11,0.10) 100%)',
+            borderBottom: '1px solid rgba(239,68,68,0.28)',
+            borderRadius: '16px 16px 0 0',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 20 }}>⚠️</span>
+            <div>
+              <strong style={{ fontSize: 13, color: '#dc2626', display: 'block', fontWeight: 800, letterSpacing: '-0.01em' }}>
+                {pendingOrders.length} {pendingOrders.length === 1 ? 'remisión entregada' : 'remisiones entregadas'} sin facturar
+              </strong>
+              <span style={{ fontSize: 12, color: '#92400e' }}>
+                {kilos(totalKg)} kg · {money(totalAmount)} con IVA — genera la factura para ingresar a contrarecibo
+              </span>
+            </div>
+          </div>
+          {canOperate && onOpenQuickInvoice && (
+            <button
+              type="button"
+              id="paq-btn-facturar-urgente"
+              className="btn"
+              onClick={() => onOpenQuickInvoice(pendingOrders[0]?.id ?? null)}
+              style={{
+                background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                color: '#fff',
+                border: 'none',
+                minHeight: 38,
+                fontSize: 12,
+                fontWeight: 700,
+                padding: '8px 16px',
+                borderRadius: 8,
+                whiteSpace: 'nowrap',
+                boxShadow: '0 2px 8px rgba(220,38,38,0.35)',
+              }}
+            >
+              📄 Facturar ahora →
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="work-panel-head">
         <div>
           <p className="work-eyebrow">TU OPERACIÓN, PASO A PASO</p>
