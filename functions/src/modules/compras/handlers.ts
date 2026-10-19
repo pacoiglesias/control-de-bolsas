@@ -93,7 +93,7 @@ export const sanitizePurchaseOrder = onDocumentWritten(
         const subtotal=Number(inv.financials.saleTotal);
         const commission=round2(subtotal*Number(inv.financials.commissionRate??cfg.commissionRate));
         const corrected={...inv.financials,commission,
-          netCashFlow:inv.financials.isEstimatedCost?0:round2(inv.financials.invoiceTotal-Number(inv.financials.costTotal||0)-commission)};
+          netCashFlow:inv.financials.isEstimatedCost?0:round2((inv.reconciliation.useSubtotalMargin?subtotal:inv.financials.invoiceTotal)-Number(inv.financials.costTotal||0)-commission)};
         if(JSON.stringify(corrected)!==JSON.stringify(inv.financials))modified=true;
         return {...inv,financials:corrected};
       }

@@ -1,6 +1,7 @@
 import { ProvidenciaPaymentRows } from './ProvidenciaPaymentRows';
 import { registerImportedInvoice } from '../../lib/registerImportedInvoice';
 import { parseProvidenciaEvidence } from '../../lib/providenciaEvidence';
+import {isSupplierStatement} from '../../lib/andresStatement';
 import type { ParsedProvidenciaPaymentData } from '../../lib/providenciaPortalParser';
 import { analyzeDocumentFast, applyDocumentFast } from '../../lib/autoDocumentPipeline';
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -118,7 +119,7 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
         else if (fileName.endsWith('.pdf') || file.type === 'application/pdf') {
           const text = await extractTextFromPdf(file);
           if (!active) return;
-          if (parseProvidenciaEvidence(text)) {
+          if (parseProvidenciaEvidence(text)||isSupplierStatement(text)||/ORDEN\s+DE\s+ENTREGA|REMISI[OÓ]N/i.test(text)) {
             const analysis = await analyzeDocumentFast(file, orders, text);
             const result = await applyDocumentFast(analysis, null, orders);
             if (active) { uploadCallbacks.current.toast(result.message, result.success ? 'ok' : 'bad'); if(result.success) uploadCallbacks.current.onClose(); }
@@ -260,6 +261,12 @@ export function GlobalDropInspectorModal({ file, queuePosition, onClose }: Globa
         else if (file.type.startsWith('image/')) {
           const text = await extractTextFromImage(file);
           if (!active) return;
+          if(/ORDEN\s+DE\s+ENTREGA|REMISI[OÓ]N/i.test(text)){
+            const analysis=await analyzeDocumentFast(file,orders,text);
+            const result=await applyDocumentFast(analysis,null,orders);
+            if(active){uploadCallbacks.current.toast(result.message,result.success?'ok':'bad');if(result.success)uploadCallbacks.current.onClose();}
+            return;
+          }
 
           // 1. Verificar si es Ticket de Báscula
           const scaleTicket = parseScaleTicket(text);

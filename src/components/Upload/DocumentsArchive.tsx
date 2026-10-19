@@ -25,6 +25,7 @@ import { GlobalDropInspectorModal } from './GlobalDropInspectorModal';
 
 const KIND_FILTERS: { value: StoredDocKind | 'all'; label: string; icon: string }[] = [
   { value: 'all',              label: 'Todos',            icon: '📁' },
+  { value: 'estado_cuenta_proveedor', label: 'Estados del proveedor', icon: '📊' },
   { value: 'oc_providencia',   label: 'Órdenes de Compra', icon: '📋' },
   { value: 'factura_cfdi',     label: 'Facturas CFDI',    icon: '🧾' },
   { value: 'pago_providencia', label: 'Pagos y complementos', icon: '💵' },

@@ -834,6 +834,8 @@ export default function OcTracking() {
                     </div>
 
                     {group.order.orderDocumentPending && <p className="alert warn">Falta la OC original con sus partidas. Completa el documento antes de registrar una entrega.</p>}
+                    {group.order.invoiceBillingPolicy==='truncate_half_kilo_each_line'&&<p className="hint">Facturar enteros o medios kilos por partida. La fracción restante es merma; báscula conserva todos los decimales.</p>}
+                    {[...new Set((group.order.deliveries||[]).flatMap(delivery=>[...(delivery.sourceWarnings||[]),...(delivery.supplierWarnings||[])]))].map((warning,index)=><p className="alert warn" key={index}>{warning}</p>)}
                     {group.invoices.some(invoice => !invoice.kilos) && <p style={{fontSize: 12, color: 'var(--ink-soft)'}}>Hay facturas sin conceptos o kilos comprobados. Completa su XML o PDF en el expediente.</p>}
                     {group.kilosPedidos > 0 && (
                       <div style={{ marginTop: 10, maxWidth: 360 }}>

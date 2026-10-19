@@ -76,10 +76,10 @@ export function ComprasKanban({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <span style={{ fontWeight: 800, fontSize: 14 }} className="mono">{o?.folio || 'S/F'}</span>
+          <span style={{ fontWeight: 800, fontSize: 14 }} className="mono">{p.remissionNumber||o?.folio || 'S/F'}</span>
           <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)' }}>{pct}%</span>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginBottom: 8 }}>{o?.client || '—'}</div>
+        <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginBottom: 8 }}>{o?.folio||p.reportedOc||'OC por comprobar'} · {o?.client || 'Estado del proveedor'}</div>
         
         <div style={{ marginBottom: 8 }}>
           <KilosProgressBar
@@ -89,7 +89,7 @@ export function ComprasKanban({
           />
         </div>
 
-        {restaPagar > 0.01 ? (
+        {p.statementDocumentId?<div style={{fontSize:12,color:'var(--ink-soft)'}}>Pago en cuenta global · ver libro mayor</div>:restaPagar > 0.01 ? (
           <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--bad)', fontFamily: 'monospace' }}>
             Faltan {restaPagar.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
           </div>
@@ -126,7 +126,7 @@ export function ComprasKanban({
 
       <div style={colStyle('var(--bad-bg)', 'rgba(239,68,68,0.25)')}>
         <div style={{ fontWeight: 700, marginBottom: 12, display: 'flex', justifyContent: 'space-between', color: 'var(--bad)', fontSize: 13 }}>
-          <span>📦 Recibido — Falta Pagar</span>
+          <span>📦 Recibido · revisar cuenta</span>
           <span style={{ background: 'var(--paper-raised)', color: 'var(--bad)', padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 800 }}>{cols.recibidoSinPagar.length}</span>
         </div>
         <div className="kanban-col-scroll" style={{ overflowY: 'auto', flex: 1, paddingRight: 4 }}>

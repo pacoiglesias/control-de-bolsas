@@ -13,6 +13,7 @@ import { useOrders } from '../../hooks/useOrders';
 import { linkDeliveriesToInvoice, unmarkDeliveriesByInvoiceId } from '../../lib/deliveries';
 import { cleanUndefined } from '../../lib/cleanUndefined';
 import { round2, validateInvoiceWeightGuardrail } from '../../lib/finance';
+import {assertInvoiceQuantityPolicy,getInvoiceDocumentCost} from '../../lib/billingQuantities';
 
 export function useInvoiceActions() {
   const toast = useToast();
@@ -41,6 +42,7 @@ export function useInvoiceActions() {
           const existingInvoiceTotal = updatedInvoice.financials?.invoiceTotal;
           const k = Number(updatedInvoice.kilos ?? 0);
           if (!Number.isFinite(k) || k < 0) throw new Error('Los kilos de la factura no son válidos.');
+          assertInvoiceQuantityPolicy(currentOrder,k,updatedInvoice.items);
           if (currentOrder.isDeleted) throw new Error('La orden está en la papelera.');
           const previousInvoice = currentInvoices[index];
           const baselineInvoice = order.invoices?.find(invoice => invoice.id === updatedInvoice.id);
@@ -74,14 +76,15 @@ export function useInvoiceActions() {
           const ivaMultiplier = 1 + (dynamicConfig.ivaRate ?? 0.16);
           const invoiceTotal = hasRealInvoiceTotal ? Number(existingInvoiceTotal) : Math.round(saleTotal * ivaMultiplier * 100) / 100;
 
-          const costTotal = Math.round(k * costPrice * 100) / 100;
+          const documentedCost=getInvoiceDocumentCost(currentOrder,k,updatedInvoice.id);
+          const costTotal = documentedCost?.amount ?? Math.round(k * costPrice * 100) / 100;
           const commBase = dynamicConfig.commissionBase === 'total' ? invoiceTotal : saleTotal;
           const commission = Math.round(commBase * commRate * 100) / 100;
           const netCashFlow = Math.round((saleTotal - costTotal - commission) * 100) / 100;
           const tradeMargin = Math.round((saleTotal - costTotal) * 100) / 100;
 
           const isEstimatedPrice = currentOrder.customSellPrice == null && updatedInvoice.financials?.salePricePerKg == null && !hasRealSaleTotal;
-          const isEstimatedCost = currentOrder.customCostPrice == null && updatedInvoice.financials?.costPricePerKg == null;
+          const isEstimatedCost = Boolean(documentedCost?.needsReview) || (currentOrder.customCostPrice == null && updatedInvoice.financials?.costPricePerKg == null);
 
           const finalFinancials = {
             salePricePerKg: salePrice,
@@ -91,8 +94,8 @@ export function useInvoiceActions() {
             invoiceTotal,
             costTotal,
             commission,
-            netCashFlow,
-            tradeMargin,
+            netCashFlow:isEstimatedCost?0:netCashFlow,
+            tradeMargin:isEstimatedCost?0:tradeMargin,
             isEstimatedPrice,
             isEstimatedCost,
           };
@@ -103,6 +106,7 @@ export function useInvoiceActions() {
 
           const finalInv: Invoice = {
             ...updatedInvoice,
+            reconciliation:{...updatedInvoice.reconciliation,version:1,source:updatedInvoice.reconciliation?.source||'manual_verified_invoice',useSubtotalMargin:true},
             folio: finalFolio,
             financials: finalFinancials,
             isEstimatedPrice,

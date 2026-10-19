@@ -33,6 +33,7 @@ export function PurchaseDrawer({ purchase, folio, onClose }: PurchaseDrawerProps
   };
 
   const handleSave = async () => {
+    if(purchase.statementDocumentId){toast('Este movimiento proviene del original. Adjunta un documento corregido para modificarlo.','bad');return;}
     try {
       const ref = doc(db, PATHS.purchases, purchase.id);
       await runTransaction(db, async (tx) => {
@@ -85,18 +86,20 @@ export function PurchaseDrawer({ purchase, folio, onClose }: PurchaseDrawerProps
               type="button"
               className="btn"
               style={{ marginTop: 12, fontSize: 12, padding: '6px 10px', width: '100%' }}
-              onClick={() => nav(`/ordenes?abrir=${purchase.id}`)}
+              onClick={() => nav(`/ordenes?abrir=${purchase.orderId||purchase.id}`)}
             >
               📋 Ver orden en Providencia →
             </button>
           )}
         </div>
 
-        <Card title="Cuentas por Pagar">
+        <Card title={purchase.statementDocumentId?'Movimiento del estado original':'Cuentas por Pagar'}>
+          {purchase.statementDocumentId&&<p className="hint">Los pagos se registran en la cuenta global del proveedor. Este cargo conserva los datos del original.</p>}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <Field label="Monto Pagado">
               <input
                 type="number"
+                disabled={Boolean(purchase.statementDocumentId)}
                 value={localPurchase.paidAmount ?? 0}
                 onChange={e => updateField(['paidAmount'], Number(e.target.value))}
               />
@@ -104,6 +107,7 @@ export function PurchaseDrawer({ purchase, folio, onClose }: PurchaseDrawerProps
 
             <Field label="Estatus de Pago">
               <select
+                disabled={Boolean(purchase.statementDocumentId)}
                 value={localPurchase.status || 'pending'}
                 onChange={e => updateField(['status'], e.target.value)}
               >
@@ -114,6 +118,7 @@ export function PurchaseDrawer({ purchase, folio, onClose }: PurchaseDrawerProps
             
             <Field label="Notas de Pago (Transferencia / Caja Chica)">
               <textarea
+                disabled={Boolean(purchase.statementDocumentId)}
                 value={localPurchase.notes || ''}
                 onChange={e => updateField(['notes'], e.target.value)}
                 placeholder="Anotar detalles de depósitos, cuentas o si se pagó desde caja chica..."
@@ -129,7 +134,7 @@ export function PurchaseDrawer({ purchase, folio, onClose }: PurchaseDrawerProps
             className="btn" 
             style={{ flex: 1, background: 'var(--accent)', color: '#fff', opacity: hasChanges ? 1 : 0.5 }} 
             onClick={handleSave}
-            disabled={!hasChanges}
+            disabled={!hasChanges||Boolean(purchase.statementDocumentId)}
           >
             Guardar Cambios
           </button>

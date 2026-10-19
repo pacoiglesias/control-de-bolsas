@@ -290,9 +290,9 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
       });
 
       try {
-        const aiFunctions = getFunctions(app, 'us-central1');
+        const aiFunctions = getFunctions(app, 'us-east1');
         const processDoc = httpsCallable(aiFunctions, 'parseDocumentData');
-        const result = await processDoc({ fileBase64: base64, mimeType: file.type || 'application/pdf' });
+        const result = await processDoc({ base64, mimeType: file.type || 'application/pdf' });
         const d: any = result.data || {};
 
         const totalKilos = d.kilosTotales || d.kilos || (d.conceptos?.reduce((acc: number, c: any) => acc + (c.cantidad || 0), 0)) || undefined;

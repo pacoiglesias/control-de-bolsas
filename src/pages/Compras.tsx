@@ -7,6 +7,8 @@ import { useToast } from '../context/ToastContext';
 import { ComprasKpiGrid } from '../components/Compras/ComprasKpiGrid';
 import { PagarAndresModal } from '../components/Compras/PagarAndresModal';
 import { AndresLedgerTable } from '../components/Compras/AndresLedgerTable';
+import {SupplierStatementReview} from '../components/Compras/SupplierStatementReview';
+import {getAndresPurchaseCost} from '../lib/finance';
 import { PurchaseDrawer } from '../components/Compras/PurchaseDrawer';
 import { RegistrarEntregaModal, AjusteModal } from '../components/Compras/OrderModals';
 import { ComprasKanban } from '../components/Compras/ComprasKanban';
@@ -38,6 +40,7 @@ export default function Compras() {
     provPurchases,
     orderById,
     deudaHistorica,
+    sourceStatement,
   } = useAndresStats(selectedProvider);
 
   const [selected, setSelected] = useState<Purchase | null>(null);
@@ -45,7 +48,7 @@ export default function Compras() {
   const [pagarModalAmount, setPagarModalAmount] = useState<number | null>(null);
   const [ajusteModal, setAjusteModal] = useState(false);
   const [tab, setTab] = useState<'estado' | 'ordenes' | 'revision'>('estado');
-  const [filter, setFilter] = useState<'activas'|'completadas'|'todas'>('activas');
+  const [filter, setFilter] = useState<'activas'|'completadas'|'todas'>('todas');
   const [search, setSearch] = useState('');
   const [view, setView] = useState<'lista' | 'tablero'>('lista');
   const [params, setParams] = useSearchParams();
@@ -148,6 +151,7 @@ export default function Compras() {
   }
 
   async function handleCalibrateSaldo() {
+    if(sourceStatement){toast('El saldo proviene de un estado original. Adjunta un estado corregido o registra el movimiento faltante para conservar la auditoría.','bad');return;}
     const inputStr = await promptDialog({
       title: '🔧 Calibrar Saldo con Andrés',
       message: `¿Cuál es el saldo real actual con Andrés en tus registros?\n\n` +
@@ -209,7 +213,7 @@ export default function Compras() {
             Módulo de Compras & Cuenta Corriente con {provName}
           </h1>
           <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', marginTop: 4 }}>
-            Control de anticipos, entregas en báscula, costo de compra ($38/kg) y estado de cuenta oficial.
+            Anticipos, remisiones y costos reales por entrega, con documentos y diferencias visibles.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -275,6 +279,7 @@ export default function Compras() {
         </div>
       </div>
 
+      <SupplierStatementReview source={sourceStatement}/>
       <ComprasKpiGrid 
         totalReceivedKilos={totalReceivedKilos}
         saldoProveedor={saldoProveedor}
@@ -340,7 +345,7 @@ export default function Compras() {
                       orderedKg,
                       receivedKg,
                       costPerKg: costKg !== null ? costKg : 0,
-                      totalCost: costKg !== null ? receivedKg * costKg : 0,
+                      totalCost: getAndresPurchaseCost(p as any,currentCostPerKg),
                       status: p.status || 'pedido',
                       deliveryDate: p.date,
                     };
@@ -355,6 +360,7 @@ export default function Compras() {
                     currentCostPerKg,
                     ledger: ledgerWithBalance as any,
                     deliveriesList,
+                    sourceStatement,
                   });
                   toast('✅ Estado de cuenta y entregas PDF generado', 'ok');
                 }}
@@ -420,7 +426,7 @@ export default function Compras() {
               const faltan = (p.expectedKilos ?? 0) - (p.receivedKilos ?? 0);
               if (filter === 'activas' && faltan <= 0.01) return false;
               if (filter === 'completadas' && faltan > 0.01) return false;
-              if (q && !(o?.folio ?? '').toLowerCase().includes(q) && !(o?.client ?? '').toLowerCase().includes(q)) return false;
+              if (q && ![o?.folio,o?.client,p.remissionNumber,p.reportedOc,p.oc].some(value=>(value||'').toLowerCase().includes(q))) return false;
               return true;
             });
             if (visibles.length === 0) return <Empty>Sin resultados para este filtro/búsqueda.</Empty>;
@@ -444,13 +450,13 @@ export default function Compras() {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                          <div className="mono" style={{ fontWeight: 700, fontSize: 15 }}>{o?.folio || 'S/F'}</div>
-                          <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{o?.client || '—'}</div>
+                          <div className="mono" style={{ fontWeight: 700, fontSize: 15 }}>{p.remissionNumber||o?.folio || 'S/F'}</div>
+                          <div style={{ fontSize: 12, color: 'var(--ink-soft)' }}>{o?.folio||p.reportedOc||'OC por comprobar'} · {o?.client || 'Estado del proveedor'}</div>
                         </div>
-                        <span className="badge" style={{ background: completo ? 'var(--ok)' : 'var(--warn)' }}>{completo ? '✅ Completa' : '⏳ Activa'}</span>
+                        <span className="badge" style={{ background: completo ? 'var(--ok)' : 'var(--warn)' }}>{p.statementDocumentId?'Cargo reportado':completo ? '✅ Completa' : '⏳ Activa'}</span>
                       </div>
 
-                      <div>
+                      {p.statementDocumentId?<div className="hint">{recibidos.toLocaleString('es-MX')} kg · {money(p.pricePerKg)}/kg · Pagos en cuenta global</div>:<div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--ink-soft)', marginBottom: 4 }}>
                           <span>{recibidos.toFixed(2)} de {pedidos.toFixed(2)} kg</span>
                           <span>{pct}%</span>
@@ -458,14 +464,14 @@ export default function Compras() {
                         <div style={{ width: '100%', height: 8, background: 'var(--bg-inset)', borderRadius: 4, overflow: 'hidden' }}>
                           <div style={{ width: `${pct}%`, height: '100%', background: completo ? 'var(--ok)' : 'var(--accent)' }} />
                         </div>
-                      </div>
+                      </div>}
 
                       <div className="mono num" style={{ fontSize: 18, fontWeight: 700 }}>
                         ${p.totalAmount?.toFixed(2) || '0.00'}
-                        <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--ink-soft)' }}> anticipo/costo</span>
+                        <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--ink-soft)' }}> {p.statementDocumentId?'importe del estado':'anticipo/costo'}</span>
                       </div>
 
-                      {o && (
+                      {o && !p.statementDocumentId && (
                         <button
                           className="btn btn-primary"
                           style={{ marginTop: 4 }}

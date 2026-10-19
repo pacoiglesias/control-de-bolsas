@@ -5,6 +5,7 @@ export { LATEST_RELEASE };
 
 export const SYSTEM_CHANGELOG: SystemRelease[] = [
   LATEST_RELEASE,
+  {version:'v9.15.2: Entregas claras y producción comprobable',date:'16 de Octubre de 2026',time:'',summary:'Seguimiento físico separado de facturación e históricos; captura de entregas con validación transaccional.',highlights:['Una factura no genera una entrega ni una compra al proveedor.']},
   {version: 'v9.15.1: Cuentas conciliadas y captura segura', date: '16 de Octubre de 2026', time: '', summary: 'Conciliación documental aplicada, captura fiscal transaccional y retiro de disparadores financieros duplicados.', highlights: ['Conservación de precios históricos, pagos y originales; sin entregas físicas creadas por una factura.']},
   {
     version:'v9.14.0: Documentos del portal y captura guiada',date:'15 de Octubre de 2026',time:'',

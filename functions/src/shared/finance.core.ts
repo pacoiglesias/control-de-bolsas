@@ -246,12 +246,20 @@ export function computeDynamicFinancials(input: DynamicFinancialsInput): Dynamic
  * (a su favor); negativo significa que todavía se le debe.
  */
 export interface AndresBalanceConfig {
+  providerStatement?: {
+    provider: string; documentId: string; asOf: string; openingSupplierBalance: number; closingSupplierBalance: number;
+    payments: {id:string;date:string;amount:number;sequence:number}[];
+    totalPayments?: number; totalDeliveries?: number; totalKilos?: number;
+    cumulativePayments?: number; cumulativeDeliveries?: number; warnings?: string[];
+    arithmeticDifference?:number;referenceCorrections?:number;quantityDifferences?:number;unmatchedRemissions?:number;
+  };
   providerBalanceCutoff?: string;
   costPricePerKg: number;
   historicalDebtAndres?: number;
 }
 
 export interface AndresPurchaseLike {
+  id?: string; totalAmount?: number; documentAmountVerified?: boolean; statementDocumentId?: string; sourceSequence?: number;
   date?: any; createdAt?: any; isDeleted?: boolean; isSuperseded?: boolean;
   provider?: string | null;
   receivedKilos?: number | null;
@@ -259,10 +267,35 @@ export interface AndresPurchaseLike {
 }
 
 export interface AndresExpenseLike {
+  id?: string; sourceSequence?: number; concept?: string; statementReported?: boolean;
   date?: any; createdAt?: any; isDeleted?: boolean; isSuperseded?: boolean; isAndresPayment?: boolean;
   provider?: string | null;
   type?: string | null;
   amount?: number | null;
+}
+
+export function getAndresPurchaseCost(purchase: AndresPurchaseLike, defaultPrice: number): number {
+  if(purchase.documentAmountVerified && purchase.statementDocumentId && Number.isFinite(purchase.totalAmount) && Number(purchase.totalAmount)>=0) return round2(Number(purchase.totalAmount));
+  return round2((Number(purchase.receivedKilos)||0)*(Number(purchase.pricePerKg)||defaultPrice));
+}
+
+export function getProviderStatementPayments(cfg: AndresBalanceConfig, provider='Andres'): AndresExpenseLike[] {
+  const source=cfg.providerStatement;if(!source || normalizarTexto(source.provider)!==normalizarTexto(provider))return [];
+  return source.payments.map(row=>({id:row.id,date:row.date,amount:row.amount,type:'egreso',provider,sourceSequence:row.sequence,statementReported:true,concept:'Pago reportado en estado de cuenta del proveedor'}));
+}
+
+export function mergeProviderPayments(expenses: AndresExpenseLike[], cfg: AndresBalanceConfig, provider='Andres') {
+  const source=getProviderStatementPayments(cfg,provider);
+  const day=(value:any)=>{const date=value?.toDate?.()|| (value?.__timestamp?new Date(value.__timestamp):new Date(value));return Number.isFinite(date?.getTime?.())?date.toISOString().slice(0,10):'';};
+  const key=(expense:AndresExpenseLike)=>day(expense.date)+'|'+round2(Number(expense.amount)||0)+'|'+(expense.type==='salida'?'egreso':expense.type);
+  const remaining=new Map<string,number>();source.forEach(row=>remaining.set(key(row),(remaining.get(key(row))||0)+1));
+  for(const expense of expenses)if(source.some(row=>row.id===expense.id))remaining.set(key(expense),Math.max(0,(remaining.get(key(expense))||0)-1));
+  return [...source,...expenses.filter(expense=>{
+    if(source.some(row=>row.id===expense.id))return false;
+    const fingerprint=key(expense);const count=remaining.get(fingerprint)||0;
+    if((normalizarTexto(expense.provider)===normalizarTexto(provider)||expense.isAndresPayment)&&count>0){remaining.set(fingerprint,count-1);return false;}
+    return true;
+  })];
 }
 
 export interface AndresBalanceResult {
@@ -292,14 +325,14 @@ export function computeAndresBalance(
   const provPurchases = (purchases || []).filter(
     (p): p is AndresPurchaseLike => !!p && inPeriod(p) && normalizarTexto(p.provider) === target,
   );
-  const provExpenses = (expenses || []).filter(
+  const provExpenses = mergeProviderPayments((expenses || []).filter(expense=>expense&&!expense.isDeleted&&!expense.isSuperseded),cfg,providerFilter).filter(
     (e): e is AndresExpenseLike => !!e && inPeriod(e) && (normalizarTexto(e.provider) === target || (target==='andres' && e.isAndresPayment===true)),
   );
 
   const totalReceivedKilos = provPurchases.reduce((acc, p) => acc + (Number(p.receivedKilos) || 0), 0);
 
   const totalPurchasesCost = provPurchases.reduce(
-    (acc, p) => acc + (Number(p.receivedKilos) || 0) * (Number(p.pricePerKg) || cfg.costPricePerKg),
+    (acc, p) => acc + getAndresPurchaseCost(p,cfg.costPricePerKg),
     0,
   );
 
@@ -312,6 +345,6 @@ export function computeAndresBalance(
   const historicalDebtAndres = cfg.historicalDebtAndres || 0;
   const saldoProveedor = totalPagado - totalPurchasesCost + historicalDebtAndres;
 
-  return { totalReceivedKilos, totalPurchasesCost, totalPagado, historicalDebtAndres, saldoProveedor };
+  return { totalReceivedKilos:round2(totalReceivedKilos), totalPurchasesCost:round2(totalPurchasesCost), totalPagado:round2(totalPagado), historicalDebtAndres, saldoProveedor:round2(saldoProveedor) };
 }
 

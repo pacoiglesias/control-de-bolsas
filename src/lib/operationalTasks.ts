@@ -2,6 +2,7 @@ import type { PurchaseOrder } from './types';
 import { computeDeliveredTotals } from './deliveries';
 import { round2 } from './finance';
 import { toDate } from './format';
+import {billableDeliveredKilos} from './billingQuantities';
 
 export type WorkCategory = 'delivery' | 'invoice' | 'receipt' | 'collection' | 'cash';
 export interface OperationalTask {
@@ -38,7 +39,9 @@ export function buildOperationalTasks(orders: PurchaseOrder[], now = new Date())
         detail: date ? `Programada: ${date.toLocaleDateString('es-MX')}` : 'Falta programar la entrega.',
         action: 'Registrar entrega', kilos: pendingDelivery, urgent: Boolean(date && date.getTime() < today), sortDate: date?.getTime() ?? Infinity });
     }
-    const pendingInvoice = round2(Math.max(0, delivered - invoiced));
+    const quantityPending=(order.invoices||[]).some(invoice=>(invoice as any).quantityPending);
+    const pendingInvoice = quantityPending?0:round2(Math.max(0, billableDeliveredKilos(order.deliveries||[]) - invoiced));
+    if(quantityPending&&delivered>0)tasks.push({...base,id:'fiscal-quantity-'+order.id,category:'invoice',title:'Completar facturas existentes',detail:'Hay entregas y facturas registradas sin kilos o conceptos. Vincula el XML/PDF antes de crear otra venta.',action:'Completar facturas',needsReview:true,urgent:false,sortDate:0});
     if (pendingInvoice > 0.01) tasks.push({ ...base, id: `invoice-${order.id}`, category: 'invoice',
       title: delivered > (itemKilos || order.totalKilograms || 0) + 0.01 ? 'Revisar kilos entregados contra la orden' : 'Registrar factura de kilos entregados',
       detail: delivered > (itemKilos || order.totalKilograms || 0) + 0.01 ? 'Las entregas superan los kilos pedidos. Revisa la orden y las remisiones antes de facturar.' : 'La entrega ya está registrada. Vincula la factura para continuar a cobranza.',

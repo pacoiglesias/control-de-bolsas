@@ -1,5 +1,6 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import { parseOrdenDeCompra } from './ocParser';
+import {parseAndresStatementPositions,type SupplierStatement,type PositionedStatementText} from './andresStatement';
 import { parseProvidenciaPaymentPdf, parseProvidenciaContrareciboHtml } from './providenciaPortalParser';
 
 // Worker de pdfjs-dist v4 — ya no usa eval (eliminado en v4.x).
@@ -52,6 +53,18 @@ export async function extractTextFromPdf(file: File): Promise<string> {
   }
 
   return fullText;
+}
+
+export async function extractSupplierStatementFromPdf(file:File):Promise<SupplierStatement> {
+  const cutoff=file.name.match(/(\d{2})[._-](\d{2})[._-](\d{4})/);
+  if(!cutoff)throw new Error('El estado requiere una fecha de corte explícita en su nombre (DD.MM.AAAA).');
+  const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;
+  try {
+    if(pdf.numPages!==1)throw new Error('Este formato de estado tiene varias páginas; requiere revisión para evitar omisiones.');
+    const content=await (await pdf.getPage(1)).getTextContent();
+    const items=content.items.filter((item:any)=>typeof item.str==='string'&&item.str.trim()).map((item:any)=>({str:item.str,x:item.transform[4],y:item.transform[5]})) as PositionedStatementText[];
+    return parseAndresStatementPositions(items,`${cutoff[3]}-${cutoff[2]}-${cutoff[1]}`);
+  } finally {await pdf.destroy();}
 }
 
 /**

@@ -1,4 +1,4 @@
-import { money } from '../lib/format';
+import { money,escapeHtml } from '../lib/format';
 
 // Extraido de MaquiladorPortal.tsx: generadores puros de HTML para los PDFs
 // del portal de proveedor (Estado de Cuenta y Remision/Comprobante de
@@ -35,6 +35,7 @@ export function getStatementHtml(statement: any, provName: string, clientName: s
       </div>
     </div>
 
+    ${statement.sourceStatement?`<section style="padding:12px;background:#fff8e5;border:1px solid #d6b86b;margin-bottom:18px;font-size:12px"><strong>Saldo según documentos · Corte ${escapeHtml(statement.sourceStatement.asOf)}</strong><p>Pagos reportados por el proveedor; conciliación bancaria y caja por separado.</p>${(statement.sourceStatement.warnings||[]).map((warning:string)=>`<div>• ${escapeHtml(warning)}</div>`).join('')}</section>`:''}
     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 24px;">
       <div style="background: #f8fafc; padding: 14px; border-radius: 10px; border-left: 4px solid #8b5cf6;">
         <div style="font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase;">Total Adquirido</div>
@@ -45,7 +46,7 @@ export function getStatementHtml(statement: any, provName: string, clientName: s
         <div style="font-size: 20px; font-weight: 800; color: #047857; margin-top: 4px;">${money(statement.totalPagado)}</div>
       </div>
       <div style="background: #f8fafc; padding: 14px; border-radius: 10px; border-left: 4px solid ${statement.saldoProveedor >= 0 ? '#10b981' : '#f59e0b'};">
-        <div style="font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase;">${statement.saldoProveedor >= 0 ? 'Saldo a tu Favor (Anticipos)' : 'Saldo por Cobrar'}</div>
+        <div style="font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase;">${statement.saldoProveedor >= 0 ? 'Anticipo disponible' : 'Saldo por pagar a Andrés'}</div>
         <div style="font-size: 20px; font-weight: 800; color: ${statement.saldoProveedor >= 0 ? '#047857' : '#b45309'}; margin-top: 4px;">
           ${statement.saldoProveedor >= 0 ? '+' : '-'}${money(Math.abs(statement.saldoProveedor))}
         </div>

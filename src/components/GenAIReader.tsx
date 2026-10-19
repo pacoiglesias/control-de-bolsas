@@ -10,6 +10,9 @@ interface GenAIReaderProps {
   compact?: boolean;
 }
 
+/** Límite de tamaño para archivos PDF/imagen que el usuario sube al lector GenAI. */
+const MAX_GENAI_UPLOAD_MB = 5;
+
 export function GenAIReader({ onDataExtracted, compact = false }: GenAIReaderProps) {
   const toast = useToast();
   const [isDragging, setIsDragging] = useState(false);
@@ -35,8 +38,8 @@ export function GenAIReader({ onDataExtracted, compact = false }: GenAIReaderPro
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast('El archivo es muy pesado. Máximo 5MB.', 'bad');
+    if (file.size > MAX_GENAI_UPLOAD_MB * 1024 * 1024) {
+      toast(`El archivo es muy pesado. Máximo ${MAX_GENAI_UPLOAD_MB}MB.`, 'bad');
       return;
     }
 

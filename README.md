@@ -1,6 +1,6 @@
 # ERP Control Bolsas — Bolsas Elemental / Grupo Textil Providencia
 
-**Versión:** `v9.11.0`
+**Versión:** `v9.15.3`
 **Estado:** Producción Activa  
 **URLs Oficiales:**
 - 🌐 Dominio Principal: [https://bolsas.cobertores.com](https://bolsas.cobertores.com)

@@ -44,7 +44,7 @@ export function ComprasKpiGrid({
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'linear-gradient(90deg, #3b82f6, #60a5fa)' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <span style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-            Kilos Recibidos (Báscula)
+            Kilos del periodo
           </span>
           <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>
             🚚
@@ -54,7 +54,7 @@ export function ComprasKpiGrid({
           <AnimatedNumber value={totalReceivedKilos} format="kilos" />
         </div>
         <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--ink-soft)' }}>
-          Total histórico de mercancía ingresada por Andrés en planta.
+          Cantidades reportadas en las remisiones del proveedor dentro del corte vigente.
         </p>
         <motion.button 
           whileHover={{ scale: 1.01 }}

@@ -1,5 +1,6 @@
 import { buildReceivables } from '../lib/receivables';
 import { computeDeliveredTotals } from '../lib/deliveries';
+import {billableDeliveredKilos} from '../lib/billingQuantities';
 import { useMemo } from 'react';
 import { round2, computeCommissionFromInvoiceTotal, normalizarTexto, orderMatchesDepartment,computeAndresBalance } from '../lib/finance';
 import { toDate } from '../lib/format';
@@ -32,6 +33,7 @@ export function useDashboardStats(
       companyName: config?.companyName || 'Bolsas Elemental / Providencia',
       historicalDebtAndres: config?.historicalDebtAndres,
       providerBalanceCutoff:config?.providerBalanceCutoff,
+      providerStatement:config?.providerStatement,
     };
 
     const deptOrders = (allDepartmentOrders || activeOrders || []).filter(o => {
@@ -144,7 +146,7 @@ export function useDashboardStats(
       const invoices = o.invoices || [];
       const delivered = computeDeliveredTotals(deliveries, o.items).kilosEntregados;
       totalKilosDelivered += delivered;
-      kilosPendientesFacturar += Math.max(0, delivered - invoices.reduce((sum, i) => sum + (Number(i.kilos) || 0), 0));
+      if(!invoices.some(invoice=>(invoice as any).quantityPending))kilosPendientesFacturar += Math.max(0, billableDeliveredKilos(deliveries) - invoices.reduce((sum, i) => sum + (Number(i.kilos) || 0), 0));
       invoices.forEach((i: any) => totalKilosInvoiced += Number(i?.kilos) || 0);
     });
     kilosPendientesFacturar = round2(kilosPendientesFacturar);

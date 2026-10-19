@@ -4,6 +4,12 @@ import { parseProvidenciaEvidence, evidenceRequirements, type ProvidenciaEvidenc
 import { applyStoredProvidenciaReconciliation } from './applyProvidenciaReconciliation';
 import { enrichPortalInvoice } from './enrichPortalInvoice';
 import { parseOrdenDeCompra } from './ocParser';
+import {isSupplierStatement,type SupplierStatement} from './andresStatement';
+import {parseDeliveryDocument,mapRemissionItems,reconcileRemissionItems,invoiceItemsFromRemission,type ParsedRemission} from './documentReconciliation';
+import {readRemissionWithVision} from './remissionVision';
+import {extractSupplierStatementFromPdf} from './ocr';
+import {applySupplierStatement,reconcileCurrentSupplierStatement} from './applySupplierStatement';
+import {registerDeliveryEvent} from './registerDeliveryEvent';
 import type { ParsedProvidenciaPaymentData } from './providenciaPortalParser';
 /**
  * autoDocumentPipeline.ts
@@ -20,7 +26,7 @@ import type { ParsedProvidenciaPaymentData } from './providenciaPortalParser';
  *  - Reactividad inmediata (OrdersContext onSnapshot reacciona al instante).
  */
 
-import { Timestamp, doc, serverTimestamp, runTransaction, writeBatch } from 'firebase/firestore';
+import { Timestamp, doc,serverTimestamp, runTransaction, writeBatch } from 'firebase/firestore';
 import { registerImportedInvoice } from './registerImportedInvoice';
 import { auth, db, PATHS } from './firebase';
 import { safeUpdateDoc } from './safeFirestore';
@@ -99,6 +105,7 @@ export function generateRobustReceiptKey(
 }
 
 export type PipelineDocType =
+  | 'estado_cuenta_proveedor'
   | 'factura_cfdi'
   | 'ticket_bascula'
   | 'remision'
@@ -108,6 +115,10 @@ export type PipelineDocType =
   | 'desconocido';
 
 export interface PipelineAnalysis {
+  analysisError?:string;
+  remissionWarnings?:string[];
+  supplierStatement?:SupplierStatement;
+  remission?:ParsedRemission;
   canEnrichInvoice?: boolean;
   invoiceItems?: PurchaseOrderItem[];
   evidence?: ProvidenciaEvidence;
@@ -528,6 +539,7 @@ export async function analyzeDocumentFast(
   let dueDate = '';
   let paymentDetail: ParsedProvidenciaPaymentData | undefined;
   let invoiceItems:PurchaseOrderItem[]|undefined;
+  let analysisError:string|undefined;
 
   try {
     // 1. CASO XML CFDI
@@ -555,6 +567,12 @@ export async function analyzeDocumentFast(
     else if (fileName.endsWith('.pdf') || file.type === 'application/pdf') {
       const text = extractedText ?? await extractTextFromPdf(file);
       rawText = text;
+      if(isSupplierStatement(text)){
+        const supplierStatement=await extractSupplierStatementFromPdf(file);
+        return {file,docType:'estado_cuenta_proveedor',supplierStatement,confidence:'alta',folio:'Andrés · '+supplierStatement.asOf,kilos:supplierStatement.totalKilos,subtotal:supplierStatement.totalDeliveries,total:supplierStatement.closingSupplierBalance,docDate:supplierStatement.asOf,detectedOcNumber:'',matchedOrder:null,autoAssignedLabel:'Estado del proveedor: conciliación por remisiones, sin movimiento de caja.',isDuplicate:false,needsClarification:false,fileContentSha256:contentHash,rawText:text};
+      }
+      const remission=parseDeliveryDocument(text);
+      if(remission)return analyzeRemission(file,text,remission,orders,contentHash);
       const evidence = parseProvidenciaEvidence(text);
       if (evidence) return { file, docType: evidence.kind==='payment_rep' ? 'comprobante_pago' : 'contrarecibo',
         confidence: 'alta', folio: evidence.folio || evidence.title, uuid: evidence.uuid,
@@ -658,8 +676,13 @@ export async function analyzeDocumentFast(
     }
     // 3. CASO IMAGEN (Ticket o Remisión)
     else if (file.type.startsWith('image/')) {
-      const text = await extractTextFromImage(file);
+      const text = extractedText ?? await extractTextFromImage(file);
       rawText = text;
+      let remission:ParsedRemission|null=null;
+      if(/ORDEN\s+DE\s+ENTREGA|REMISI[OÓ]N/i.test(text)){
+        try{remission=parseDeliveryDocument(text);}catch{remission=await readRemissionWithVision(file);}
+      }
+      if(remission)return analyzeRemission(file,text,remission,orders,contentHash);
       const scaleTicket = parseScaleTicket(text);
       if (scaleTicket.kilosNeto && scaleTicket.kilosNeto > 0) {
         docType = 'ticket_bascula';
@@ -707,6 +730,7 @@ export async function analyzeDocumentFast(
     console.error('Error al analizar archivo en pipeline:', err);
     docType = 'desconocido';
     confidence = 'baja';
+    analysisError=(err as Error).message;
   }
 
   // Matching de Orden
@@ -790,6 +814,7 @@ export async function analyzeDocumentFast(
     (!dupCheck.isDuplicate && !matchedOrder && docType !== 'oc_providencia' && docType !== 'contrarecibo');
 
   return {
+    analysisError,
     file,
     docType,
     confidence,
@@ -822,6 +847,13 @@ export async function analyzeDocumentFast(
     dueDate,
     contentHash,
   };
+}
+
+function analyzeRemission(file:File,rawText:string,remission:ParsedRemission,orders:PurchaseOrder[],hash:string|null):PipelineAnalysis {
+  const order=findExactPurchaseOrder(orders,remission.oc,'');
+  const warnings=order?reconcileRemissionItems(order,remission.items).warnings:[];
+  const duplicate=findExistingDelivery(orders,remission.folio,remission.kilos,remission.date);
+  return {file,rawText,remission,remissionWarnings:warnings,docType:'remision',confidence:'alta',folio:remission.folio,kilos:remission.kilos,subtotal:remission.subtotal,total:remission.total,docDate:remission.date,detectedOcNumber:remission.oc,matchedOrder:order,autoAssignedLabel:order?'OC '+order.oc+' · '+remission.items.length+' partidas verificadas':null,isDuplicate:duplicate.isDuplicate,duplicateOrder:duplicate.order,needsClarification:!order,fileContentSha256:hash};
 }
 
 // Candado en memoria para evitar doble clic y procesamiento concurrente del mismo documento
@@ -879,6 +911,17 @@ export async function applyDocumentFast(
   inFlightOperations.add(operationKey);
 
   try {
+    if(analysis.analysisError)return {success:false,needsReview:true,docType:analysis.docType,folio:analysis.folio,kilos:0,total:0,message:'No se aplicaron cantidades: '+analysis.analysisError};
+    if(analysis.supplierStatement){
+      const source=analysis.supplierStatement;
+      if(!analysis.fileContentSha256)throw new Error('No se pudo verificar la huella del original.');
+      const documentId='supplier-'+analysis.fileContentSha256;
+      await uploadDocument({file:analysis.file,docKind:'estado_cuenta_proveedor',documentId,folio:analysis.folio,kilos:source.totalKilos,total:source.closingSupplierBalance,docDate:source.asOf,supplierStatement:source,notes:'Estado del proveedor; pagos reportados sin crear movimientos de caja.'});
+      try{
+        const plan=await applySupplierStatement(source,documentId);
+        return {success:true,docType:analysis.docType,folio:analysis.folio,kilos:analysis.kilos,total:analysis.total,needsReview:plan.warnings.length>0,message:'Estado conciliado: '+source.rows.length+' movimientos. Saldo según documento $'+source.closingSupplierBalance.toFixed(2)+'. '+plan.warnings.length+' avisos por comprobar; consulta Compras. No se duplicaron pagos en caja.'};
+      }catch(error){return {success:false,needsReview:true,docType:analysis.docType,folio:analysis.folio,kilos:analysis.kilos,total:analysis.total,message:'Original conservado. '+(error as Error).message};}
+    }
     // Registro de auditoría si fue una decisión manual forzada por el operador
     if (effectiveAudit) {
       try {
@@ -1025,17 +1068,19 @@ export async function applyDocumentFast(
     const ref = doc(db, PATHS.orders, orderId);
     const outcome = await runTransaction(db, async txn => {
       const snapshot = await txn.get(ref);
+      const config=await txn.get(doc(db,PATHS.config,PATHS.configFinancials));
+      const configuredData=purchaseOrderFromText(analysis.rawText||'',config.data());
       if (snapshot.exists()) {
         const current=snapshot.data();
         if(current.oc && current.oc!==data.oc)throw new Error('La identidad de la OC guardada no coincide con el documento.');
         if(!current.orderDocumentPending && current.items?.length && !current.isDeleted)return 'duplicate';
-        const details={...data};
+        const details={...configuredData};
         delete details.invoices;delete details.deliveries;delete details.creditCycle;delete details.isClosedShort;
         txn.update(ref,cleanUndefined({...details,isDeleted:false,isSuperseded:false,orderDocumentPending:false,productionTrackingEnabled:true,updatedAt:serverTimestamp()}));
         txn.set(doc(db,'history','order-details-'+orderId+'-'+Date.now()),cleanUndefined({userId:auth.currentUser?.uid,action:'PURCHASE_ORDER_DETAILS',createdAt:serverTimestamp(),orderId,fileSha256:analysis.fileContentSha256,before:current,details}));
         return 'completed';
       }
-      txn.set(ref, cleanUndefined({ ...data, processedAt: toSafeTimestamp(analysis.docDate),
+      txn.set(ref, cleanUndefined({ ...configuredData, processedAt: toSafeTimestamp(analysis.docDate),
         estimatedDeliveryDate: parsed.estimatedDeliveryDate ? Timestamp.fromDate(parsed.estimatedDeliveryDate) : undefined,
         notes: 'OC importada desde ' + analysis.file.name, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }));
       return 'created';
@@ -1644,17 +1689,11 @@ export async function applyDocumentFast(
       invoiced: false,
       docType: 'remision',
       ...(cleanDocFolio ? { docFolio: cleanDocFolio } : {}),
+      ...(analysis.remissionWarnings?.length?{sourceWarnings:analysis.remissionWarnings}:{}),
+      ...(analysis.remission?{items:mapRemissionItems(targetOrder,analysis.remission.items),invoiceItems:invoiceItemsFromRemission(targetOrder,analysis.remission.items,targetOrder.invoiceBillingPolicy),billingQuantityPolicy:targetOrder.invoiceBillingPolicy}:{}),
     };
 
-    if (orderRef) {
-      await safeUpdateDoc(orderRef, {
-        deliveries: cleanUndefined([...existingDeliveries, newDelivery]),
-        updatedAt: serverTimestamp(),
-      });
-    }
-
-    try {
-      await uploadDocument({
+    const original=await uploadDocument({
         file: analysis.file,
         docKind: analysis.docType === 'ticket_bascula' ? 'ticket_bascula' : 'remision',
         folio: analysis.folio || `TKT-${Date.now()}`,
@@ -1664,14 +1703,15 @@ export async function applyDocumentFast(
         total: 0,
         docDate: analysis.docDate,
         notes: `Ticket #${analysis.folio || 'S/N'} (${numKilos.toLocaleString('es-MX')} kg)`,
+        documentId:analysis.fileContentSha256?'delivery-'+analysis.fileContentSha256:undefined,
       });
-    } catch (e) {
-      console.warn('Error al subir ticket a Storage:', e);
-    }
+    await registerDeliveryEvent(targetOrder.id,{...newDelivery,sourceDocumentId:original.id});
+    let supplierReview='';
+    try{const plan=await reconcileCurrentSupplierStatement();if(plan)supplierReview=' Cuenta del proveedor contrastada; consulta sus avisos en Compras.';}catch(error){supplierReview=' Entrega guardada; conciliación de proveedor pendiente: '+(error as Error).message;}
 
     return {
       success: true,
-      message: `Entrega de báscula de ${numKilos.toLocaleString('es-MX')} kg registrada y respaldada en ${targetOrder.folio || targetOrder.oc}.`,
+      message: `Entrega de báscula de ${numKilos.toLocaleString('es-MX')} kg registrada y respaldada en ${targetOrder.folio || targetOrder.oc}.`+supplierReview,
       docType: analysis.docType,
       folio: analysis.folio,
       kilos: numKilos,

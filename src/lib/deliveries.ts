@@ -3,7 +3,7 @@ import { safeSetDoc, safeUpdateDoc } from './safeFirestore';
 import { db, PATHS } from './firebase';
 import { computeFinancials, addDays, round2 } from './finance';
 import type { Delivery, Invoice, PurchaseOrder, PurchaseOrderItem, FinancialConfig } from './types';
-import { getEffectiveOrderItems } from './types';
+import {deliveryBillableKilos,getInvoiceProductCatalog,billableLineQuantity} from './billingQuantities';
 
 /**
  * Toda la lógica de "entregas como eventos" y conciliación por partida para facturación.
@@ -162,8 +162,10 @@ export function computeItemInvoiceBreakdown(
   order: PurchaseOrder,
   defaultUnitPrice: number = 43
 ): ItemInvoiceBreakdown[] {
-  const effectiveItems = getEffectiveOrderItems(order);
-  const deliveries = (order.deliveries || []).filter(delivery => !delivery.inferredFromInvoice);
+  const effectiveItems = getInvoiceProductCatalog(order);
+  const physicalDeliveries = (order.deliveries || []).filter(delivery => !delivery.inferredFromInvoice);
+  const physicalByItem=computeDeliveredTotals(physicalDeliveries,effectiveItems).deliveredByItem;
+  const deliveries = physicalDeliveries.map(delivery=>delivery.billingQuantityPolicy?{...delivery,kilos:deliveryBillableKilos(delivery),items:delivery.items?.map(item=>({...item,quantity:billableLineQuantity(item.quantity,delivery.billingQuantityPolicy)}))}:delivery);
   const invoices = order.invoices || [];
 
   const totalDeliveredKilos = deliveries.reduce((sum, d) => {
@@ -293,7 +295,7 @@ export function computeItemInvoiceBreakdown(
       unit: it.unit || 'KGM',
       unitPrice: it.unitPrice || defaultUnitPrice,
       ocQuantity: ocQty,
-      alreadyDelivered: round2(itemDelivered),
+      alreadyDelivered: round2(physicalByItem[it.id]??itemDelivered),
       alreadyInvoiced: round2(itemInvoiced),
       uninvoicedDeliveredKilos,
       remainingOcKilos,
@@ -338,7 +340,7 @@ export function linkDeliveriesToInvoice(
 export function getDeliveryBilling(delivery: Delivery) {
   if (delivery.inferredFromInvoice) return {kilos: 0, invoicedKilos: 0, pendingKilos: 0};
   const itemsKilos = (delivery.items ?? []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
-  const kilos = round2(Math.max(0, itemsKilos > 0 ? itemsKilos : Number(delivery.kilos) || 0));
+  const kilos = delivery.billingQuantityPolicy?deliveryBillableKilos(delivery):round2(Math.max(0, itemsKilos > 0 ? itemsKilos : Number(delivery.kilos) || 0));
   const allocated = (delivery.invoiceAllocations ?? []).reduce((sum, allocation) => sum + allocation.kilos, 0);
   const invoicedKilos = round2(Math.min(kilos, Math.max(0,
     delivery.invoicedKilos ?? (delivery.invoiced ? kilos : allocated), allocated)));

@@ -1,0 +1,27 @@
+# Configuración de Google Cloud App Engine para Control de Bolsas ERP (Vite SPA)
+runtime: nodejs22
+instance_class: F1
+
+handlers:
+  # Archivos estáticos con hash en /assets
+  - url: /assets
+    static_dir: dist/assets
+    secure: always
+
+  # Recursos raíz e imágenes
+  - url: /(.*\.(js|css|png|jpg|jpeg|gif|svg|ico|json|webmanifest|woff|woff2|ttf))$
+    static_files: dist/\1
+    upload: dist/(.*\.(js|css|png|jpg|jpeg|gif|svg|ico|json|webmanifest|woff|woff2|ttf))$
+    secure: always
+
+  # Service Worker y manifiesto sin caché agresiva
+  - url: /(sw\.js|workbox-.*\.js)$
+    static_files: dist/\1
+    upload: dist/(sw\.js|workbox-.*\.js)$
+    secure: always
+
+  # Fallback SPA routing a index.html
+  - url: /.*
+    static_files: dist/index.html
+    upload: dist/index.html
+    secure: always

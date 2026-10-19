@@ -1,4 +1,4 @@
-import { money, kilos, fmtDateFull, fmtDateTimeFull, fmtDayAndDate } from './format';
+import { money, kilos, fmtDateFull, fmtDateTimeFull, fmtDayAndDate,escapeHtml } from './format';
 
 interface LedgerItem {
   id: string;
@@ -30,6 +30,7 @@ export async function generateAndresAuditStatementPdf(data: {
   currentCostPerKg: number;
   ledger: LedgerItem[];
   deliveriesList?: AndresStatementDeliveryItem[];
+  sourceStatement?:import('../../functions/src/shared/finance.core').AndresBalanceConfig['providerStatement'];
 }) {
   const html2pdf = (await import('html2pdf.js')).default;
   const fechaHoy = fmtDateFull(new Date());
@@ -53,12 +54,13 @@ export async function generateAndresAuditStatementPdf(data: {
         </div>
 
         <div style="text-align: right; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 14px; min-width: 210px;">
-          <div style="font-size: 10px; font-weight: 800; color: #7c3aed; text-transform: uppercase;">PRECIO POR KILO PACTADO</div>
+          <div style="font-size: 10px; font-weight: 800; color: #7c3aed; text-transform: uppercase;">REFERENCIA ACTUAL · VER TARIFA DE CADA REMISIÓN</div>
           <div style="font-size: 18px; font-weight: 900; color: #0f172a; margin-top: 2px;">$${data.currentCostPerKg.toFixed(2)} / kg</div>
           <div style="font-size: 9.5px; color: #64748b;">Emisión: ${fechaEmisionExacta}</div>
         </div>
       </div>
 
+      ${data.sourceStatement?`<div style="padding:12px;background:#fff8e5;border:1px solid #d6b86b;margin-bottom:16px;font-size:11px"><strong>Corte documental: ${escapeHtml(data.sourceStatement.asOf)} · Saldo según el estado del proveedor.</strong><p>Los pagos reportados se concilian con sus comprobantes bancarios; no constituyen registros adicionales de caja.</p>${(data.sourceStatement.warnings||[]).map(warning=>`<div>• ${escapeHtml(warning)}</div>`).join('')}</div>`:''}
       <!-- RESUMEN EJECUTIVO (CARDS) -->
       <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;">
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px;">
@@ -67,7 +69,7 @@ export async function generateAndresAuditStatementPdf(data: {
         </div>
 
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px;">
-          <div style="font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase;">💼 Costo Total ($42/kg)</div>
+          <div style="font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase;">💼 Cargos del periodo</div>
           <div style="font-size: 14px; font-weight: 900; color: #0f172a; margin-top: 2px;">${money(data.totalPurchasesCost)}</div>
         </div>
 

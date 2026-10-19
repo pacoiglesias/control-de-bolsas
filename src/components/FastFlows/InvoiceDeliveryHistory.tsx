@@ -34,8 +34,8 @@ export function InvoiceDeliveryHistory({ deliveries, order }: InvoiceDeliveryHis
     );
   }
 
-  const pendingDeliveries = deliveries.filter((d) => !d.invoiced);
-  const invoicedDeliveries = deliveries.filter((d) => d.invoiced);
+  const pendingDeliveries = deliveries.filter((d) => getDeliveryBilling(d).pendingKilos>0);
+  const invoicedDeliveries = deliveries.filter((d) => !d.inferredFromInvoice&&d.invoiced);
 
   const deliveryKilos = (d: Delivery) =>
     d.items && d.items.length > 0
@@ -47,6 +47,8 @@ export function InvoiceDeliveryHistory({ deliveries, order }: InvoiceDeliveryHis
 
   return (
     <div style={{ background: 'var(--paper-raised)', border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
+      {order.invoiceBillingPolicy&&<p style={{padding:'10px 16px',margin:0,background:'#eff6ff',color:'#1e40af',fontSize:13}}>Providencia: {order.invoiceBillingPolicy==='truncate_half_kilo_each_line'?'kilos enteros o medios kilos':'kilos enteros'} por partida. La fracción restante queda como merma; se conserva el peso físico y el costo completo del proveedor.</p>}
+      {[...new Set(deliveries.flatMap(delivery=>[...(delivery.sourceWarnings||[]),...(delivery.supplierWarnings||[])]))].map((warning,index)=><p className="alert warn" key={index}>{warning}</p>)}
       {/* Header colapsable */}
       <button
         type="button"

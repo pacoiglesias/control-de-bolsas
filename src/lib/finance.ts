@@ -1,5 +1,6 @@
 import type { PurchaseOrder, PurchaseOrderItem, Invoice, Delivery, OrderStatus, FinancialConfig, AndresRequirement, NextActionInfo } from './types';
 import Decimal from 'decimal.js-light';
+import {billableDeliveredKilos} from './billingQuantities';
 
 /**
  * La formula vive en un solo lugar: functions/src/shared/finance.core.ts, que
@@ -17,6 +18,8 @@ export {
   computeDynamicFinancials,
   computeCommissionFromInvoiceTotal,
   computeAndresBalance,
+  getAndresPurchaseCost,
+  mergeProviderPayments,
   configEfectiva,
   round2,
   normalizarTexto,
@@ -369,6 +372,8 @@ export function getOrderSummary(o: PurchaseOrder) {
   if (!o) {
     return {
       kilosDelivered: 0,
+      kilosBillableDelivered: 0,
+      invoiceQuantityPending: false,
       kilosInvoiced: 0,
       invoiceTotal: 0,
       saleTotal: 0,
@@ -519,6 +524,8 @@ export function getOrderSummary(o: PurchaseOrder) {
     invoices,
     deliveries,
     kilosDelivered,
+    kilosBillableDelivered: billableDeliveredKilos(deliveries),
+    invoiceQuantityPending: invoices.some(invoice=>(invoice as any).quantityPending),
     kilosInvoiced: round2(kilosInvoiced.toNumber()),
     invoiceTotal: round2(invoiceTotal.toNumber()),
     saleTotal: round2(saleTotal.toNumber()),
@@ -706,8 +713,9 @@ export function getSuggestedNextAction(order: PurchaseOrder, _config?: Financial
 
 
   // 2. Si hay entregas pero faltan por facturar
-  if (kilosEntregados > kilosFacturados + 0.01) {
-    const porFacturar = round2(kilosEntregados - kilosFacturados);
+  if(summary.invoiceQuantityPending && kilosEntregados>0)return {key:'facturar_entrega',title:'Completar datos de las facturas registradas',description:'Faltan conceptos o kilos de facturas existentes. Vincula su XML/PDF antes de generar otra venta.',actionLabel:'Completar facturas',badgeTone:'warn',targetTab:'facturas'};
+  if (summary.kilosBillableDelivered > kilosFacturados + 0.01) {
+    const porFacturar = round2(summary.kilosBillableDelivered - kilosFacturados);
     return {
       key: 'facturar_entrega',
       title: 'Facturar Entregas de Andrés',
@@ -868,7 +876,7 @@ export function validateInvoiceWeightGuardrail(
   const s = getOrderSummary(order);
   const itemsKilos = (order?.items ?? []).reduce((sum: number, item: PurchaseOrderItem) => sum + (Number(item.quantity) || 0), 0);
   const totalOrderedKg = round2(itemsKilos > 0 ? itemsKilos : Number(order?.totalKilograms) || s.kilosDelivered || 0);
-  const totalDeliveredKg = round2(s.kilosDelivered || 0);
+  const totalDeliveredKg = round2(s.kilosBillableDelivered || 0);
 
   const invoices = Array.isArray(order?.invoices) ? order.invoices : [];
   const alreadyInvoicedKg = round2(

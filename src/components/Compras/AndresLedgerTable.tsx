@@ -47,7 +47,7 @@ export function AndresLedgerTable({ ledgerWithBalance, deudaHistorica }: { ledge
                 ) : e.source === 'purchase' ? (
                   <span className="badge b-ok">Material</span>
                 ) : (
-                  <span className="badge b-info">Caja (Pago)</span>
+                  <span className="badge b-info">{e.statementReported?'Estado del proveedor':'Caja (Pago)'}</span>
                 )}
               </td>
               <td>{e.concept}</td>
@@ -61,7 +61,7 @@ export function AndresLedgerTable({ ledgerWithBalance, deudaHistorica }: { ledge
                 {e.balance > 0 ? `+${money(e.balance)} (A favor)` : e.balance < 0 ? `-${money(Math.abs(e.balance))} (Deuda)` : '$0.00'}
               </td>
               <td style={{ textAlign: 'center' }}>
-                {e.source === 'expense' && e.abono > 0 ? (
+                {e.source === 'expense' && !e.statementReported && e.abono > 0 ? (
                   <button
                     type="button"
                     className="btn"

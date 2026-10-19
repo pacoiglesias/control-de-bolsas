@@ -37,8 +37,8 @@ export function PurchasesProvider({ children }: { children: ReactNode }) {
         initialLoad = false;
 
         const rows = snap.docs
-          .filter((d: any) => !d.data().isDeleted)
-          .map((d) => ({ id: d.id, ...d.data() }) as Purchase);
+          .filter((d: any) => !d.data().isDeleted && !d.data().isSuperseded)
+          .map((d) => ({ ...d.data(), id: d.id }) as Purchase);
         rows.sort((a: any, b: any) => (toDate(b.date)?.getTime() || 0) - (toDate(a.date)?.getTime() || 0));
         setPurchases(rows);
         setLoading(false);

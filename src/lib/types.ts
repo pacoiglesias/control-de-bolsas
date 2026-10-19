@@ -13,6 +13,9 @@ export type AnyFirestoreDate =
 export type OrderStatus = 'pedido' | 'facturado' | 'pending' | 'in_review' | 'paid' | 'collected' | 'overdue' | 'manual_review' | 'completed';
 
 export interface FinancialConfig {
+  productDimensionAliases?:Record<string,string[]>;
+  providenciaBillingPolicy?:InvoiceQuantityPolicy;
+  providerStatement?: import('../../functions/src/shared/finance.core').AndresBalanceConfig['providerStatement'];
   providerBalanceCutoff?: string;
   salePricePerKg: number;
   costPricePerKg: number;
@@ -167,7 +170,14 @@ export interface CollectionInfo {
   }>;
 }
 
+export type InvoiceQuantityPolicy='truncate_each_line'|'truncate_half_kilo_each_line';
 export interface Delivery {
+  billingQuantityPolicy?: InvoiceQuantityPolicy;
+  invoiceItems?: PurchaseOrderItem[];
+  sourceDocumentId?: string;
+  sourceWarnings?:string[];
+  supplierWarnings?:string[];
+  supplierCost?: {amount:number; kilos:number;pricePerKg:number;remission:string;statementDocumentId:string;needsReview?:boolean};
   inferredFromInvoice?: boolean;
   id: string;
   date: Timestamp | null;
@@ -206,6 +216,7 @@ export interface Delivery {
 }
 
 export interface Invoice {
+  reconciliation?:{version:number;source?:string;useSubtotalMargin?:boolean};
   id: string;
   orderId: string; // Relación con el expediente padre
   client?: string; // Copia para mostrar en el tablero sin buscar el expediente
@@ -227,6 +238,7 @@ export interface Invoice {
 }
 
 export interface PurchaseOrderItem {
+  dimensionAliases?:string[];
   id: string;
   code?: string;
   quantity: number;
@@ -274,6 +286,7 @@ export function getEffectiveOrderItems(order?: PurchaseOrder | null): PurchaseOr
 }
 
 export interface PurchaseOrder {
+  invoiceBillingPolicy?: InvoiceQuantityPolicy;
   id: string;
   fileName?: string;
   fileHash?: string;
@@ -392,6 +405,7 @@ export interface Expense {
 export type PurchaseStatus = 'pedido' | 'parcial' | 'entregado';
 
 export interface Purchase {
+  orderId?:string;oc?:string;reportedOc?:string;remissionNumber?:string;statementDocumentId?:string;documentAmountVerified?:boolean;needsReview?:boolean;
   id: string;
   date: Timestamp | null;
   provider: string;

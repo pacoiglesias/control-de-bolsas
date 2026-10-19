@@ -90,7 +90,7 @@ export function buildOcGroups(orders: PurchaseOrder[]): OcGroup[] {
       const kilosEntregados = Number(summary.kilosDelivered ?? 0);
       const kilosFaltantes = mergedOrder.isClosedShort || !isProductionTracked(mergedOrder) ? 0 : Math.max(0, kilosPedidos - kilosEntregados);
       const kilosFacturados = Number(summary.kilosInvoiced ?? 0);
-      const kilosPendientesFacturar = (mergedOrder.isClosedShort && kilosFacturados >= kilosEntregados - 0.05) ? 0 : Math.max(0, kilosEntregados - kilosFacturados);
+      const kilosPendientesFacturar = summary.invoiceQuantityPending || (mergedOrder.isClosedShort && kilosFacturados >= summary.kilosBillableDelivered - 0.05) ? 0 : Math.max(0, summary.kilosBillableDelivered - kilosFacturados);
 
       const invoices = (mergedOrder.invoices ?? []).map(inv => {
         const st = inv.creditCycle?.status ?? 'pending';

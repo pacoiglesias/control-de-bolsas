@@ -39,6 +39,7 @@ import { storage, db } from './firebase';
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 export type StoredDocKind =
+  | 'estado_cuenta_proveedor'
   | 'oc_providencia'
   | 'pago_providencia'
   | 'factura_cfdi'
@@ -48,6 +49,7 @@ export type StoredDocKind =
   | 'desconocido';
 
 export interface StoredDocument {
+  supplierStatement?: import('./andresStatement').SupplierStatement;
   evidence?: ProvidenciaEvidence;
   /** ID del documento Firestore */
   id: string;
@@ -89,6 +91,7 @@ const DOCS_COLLECTION = 'storedDocuments';
 // ─── Subir documento ──────────────────────────────────────────────────────────
 
 export interface UploadDocumentOptions {
+  supplierStatement?: import('./andresStatement').SupplierStatement;
   evidence?: ProvidenciaEvidence;
   documentId?: string;
   file: File;
@@ -156,6 +159,7 @@ export async function uploadDocument(opts: UploadDocumentOptions): Promise<Store
     sizeBytes: file.size,
     mimeType: file.type || 'application/pdf',
     ...(opts.evidence ? { evidence: opts.evidence } : {}),
+    ...(opts.supplierStatement ? {supplierStatement:opts.supplierStatement}:{}),
   };
 
   const docRef = opts.documentId ? doc(db, DOCS_COLLECTION, opts.documentId) : null;
@@ -254,6 +258,7 @@ export function docKindIcon(kind: StoredDocKind): string {
 
 export function docKindLabel(kind: StoredDocKind): string {
   switch (kind) {
+    case 'estado_cuenta_proveedor': return 'Estado de cuenta del proveedor';
     case 'oc_providencia': return 'Orden de Compra';
     case 'pago_providencia': return 'Comprobante de Pago';
     case 'factura_cfdi': return 'Factura CFDI';

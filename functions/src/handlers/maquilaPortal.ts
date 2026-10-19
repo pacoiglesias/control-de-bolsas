@@ -2,7 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { FieldValue, FieldPath, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { randomUUID } from "crypto";
-import { normalizarTexto, computeAndresBalance, round2 } from "../shared/finance.core";
+import { normalizarTexto, computeAndresBalance, round2, getAndresPurchaseCost, mergeProviderPayments } from "../shared/finance.core";
 import { COL_ORDERS } from "./shared";
 
 // FIX (v8.9.10, split de functions/src/index.ts -- 1,292 líneas): todo lo
@@ -201,11 +201,13 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
     // tres llaman a computeAndresBalance(), la fuente única de verdad.
     const rawHist = configSnap.data()?.historicalDebtAndres;
     const historicalDebtAndres = typeof rawHist === 'number' ? rawHist : 103411.84;
+    const providerConfig={...configSnap.data(),costPricePerKg,historicalDebtAndres};
+    const providerExpenses=mergeProviderPayments(provExpenses,providerConfig,'andres');
 
     const andresBalance = computeAndresBalance(
       provPurchases as any[],
       provExpenses as any[],
-      { costPricePerKg, historicalDebtAndres,providerBalanceCutoff:configSnap.data()?.providerBalanceCutoff },
+      providerConfig,
       "andres",
     );
     const { totalReceivedKilos, totalPurchasesCost, totalPagado, saldoProveedor } = andresBalance;
@@ -213,10 +215,10 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
     // Fila inicial canónica del corte oficial
     const initRow = {
       id: 'init-andres-balance',
-      dateMillis: CUT_TIMESTAMP,
-      concept: 'Saldo Inicial Oficial a Favor (Anticipos Disponibles)',
-      cargo: 0,
-      abono: historicalDebtAndres,
+      dateMillis: CUT_TIMESTAMP+12*60*60*1000,
+      concept: historicalDebtAndres>=0?'Anticipo anterior disponible':'Saldo anterior pendiente de pagar al proveedor',
+      cargo: historicalDebtAndres<0?Math.abs(historicalDebtAndres):0,
+      abono: historicalDebtAndres>0?historicalDebtAndres:0,
       balance: historicalDebtAndres,
       source: 'historical'
     };
@@ -225,26 +227,26 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
       ...provPurchases.map((p: any) => ({
         id: p.id,
         date: p.date, 
-        concept: `Entrega (Amortización) OC-${orderById.get(p.id)?.folio || 'S/F'}`,
-        cargo: round2((p.receivedKilos ?? 0) * (p.pricePerKg || costPricePerKg)),
+        concept: `Remisión ${p.remissionNumber||p.id} · ${p.receivedKilos} kg a $${p.pricePerKg}`,
+        cargo: getAndresPurchaseCost(p,costPricePerKg),
         abono: 0,
         balance: 0,
         source: 'purchase',
-        dateMillis: getMillis(p.date)
+        dateMillis: getMillis(p.date),sourceSequence:p.sourceSequence||0
       })).filter((x: any) => x.cargo > 0),
-      ...provExpenses.map((e: any) => ({
+      ...providerExpenses.map((e: any) => ({
         id: e.id,
         date: e.date,
         concept: e.concept || 'Pago / Abono',
         cargo: 0, 
-        abono: e.type === 'egreso' ? round2(Math.abs(e.amount || 0)) : 0, 
+        abono: e.type === 'egreso'||e.type==='salida' ? round2(Math.abs(e.amount || 0)) : 0,
         balance: 0,
-        source: 'expense',
-        dateMillis: getMillis(e.date)
+        source: 'expense',statementReported:Boolean(e.statementReported),
+        dateMillis: getMillis(e.date),sourceSequence:e.sourceSequence||0
       })).filter((x: any) => x.abono > 0)
     ];
 
-    movimientosPosteriores.sort((a, b) => a.dateMillis - b.dateMillis);
+    movimientosPosteriores.sort((a, b) => a.dateMillis - b.dateMillis || a.sourceSequence-b.sourceSequence);
 
     let running = historicalDebtAndres;
     for (const row of movimientosPosteriores) {
@@ -262,6 +264,7 @@ export const getActiveMaquilaOrders = onCall({ invoker: "public", cors: true, me
       totalPagado,
       saldoProveedor,
       ledger,
+      sourceStatement:configSnap.data()?.providerStatement||null,
       diagnostico: {
         registrosCompras: provPurchases.length,
         registrosGastos: provExpenses.length,

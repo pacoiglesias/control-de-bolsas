@@ -1,6 +1,7 @@
 import { money } from '../lib/format';
 import { openWhatsAppMessage, openEmailMessage } from '../lib/whatsappReminder';
 import { glass, kpiCard } from './MaquiladorPortal.shared';
+import {SupplierStatementReview} from '../components/Compras/SupplierStatementReview';
 
 interface MaquiladorPortalEstadoTabProps {
   loadingStatement: boolean;
@@ -60,6 +61,7 @@ export default function MaquiladorPortalEstadoTab({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <SupplierStatementReview source={statement.sourceStatement} dark/>
       {/* KPIs de Saldo */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div style={kpiCard('#a78bfa')}>
@@ -93,9 +95,9 @@ export default function MaquiladorPortalEstadoTab({
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', fontWeight: 800, textTransform: 'uppercase' }}>
-              {statement.saldoProveedor >= 0 ? '✅ Saldo a tu Favor (Anticipos)' : '⚠️ Saldo por Cobrar a tu Favor'}
+              {statement.saldoProveedor >= 0 ? 'Anticipo disponible para fabricar' : 'Saldo por pagar a Andrés'}
             </span>
-            <span style={{ fontSize: 12, color: '#a78bfa', fontWeight: 600 }}>En tiempo real</span>
+            <span style={{ fontSize: 12, color: '#a78bfa', fontWeight: 600 }}>{statement.sourceStatement?'Según documentos conciliados':'Cuenta registrada'}</span>
           </div>
           <span
             style={{
@@ -144,8 +146,8 @@ export default function MaquiladorPortalEstadoTab({
           onClick={() => {
             const saldoText =
               statement.saldoProveedor >= 0
-                ? `Saldo a favor de ${provName}: +${money(Math.abs(statement.saldoProveedor))}`
-                : `Anticipo pendiente: -${money(Math.abs(statement.saldoProveedor))}`;
+                ? `Anticipo disponible para fabricar: ${money(Math.abs(statement.saldoProveedor))}`
+                : `Saldo por pagar a ${provName}: ${money(Math.abs(statement.saldoProveedor))}`;
             const subject = `Resumen de Estado de Cuenta — ${provName}`;
             const body = `Hola Paco,\n\nTe comparto mi resumen de cuenta:\n\n• Total Fabricado: ${money(
               statement.totalPurchasesCost
@@ -175,8 +177,8 @@ export default function MaquiladorPortalEstadoTab({
           onClick={() => {
             const saldoText =
               statement.saldoProveedor >= 0
-                ? `Saldo a mi favor de *+${money(Math.abs(statement.saldoProveedor))}*`
-                : `Anticipo pendiente de *-${money(Math.abs(statement.saldoProveedor))}*`;
+                ? `Anticipo disponible para fabricar: *${money(Math.abs(statement.saldoProveedor))}*`
+                : `Saldo por pagar al proveedor: *${money(Math.abs(statement.saldoProveedor))}*`;
             const text = `Hola Paco, te comparto mi resumen de cuenta:\n• Total Fabricado: *${money(
               statement.totalPurchasesCost
             )}*\n• Total Pagado: *${money(

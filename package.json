@@ -1,12 +1,12 @@
 {
   "name": "control-bolsas-erp",
   "private": true,
-  "version": "9.15.2",
+  "version": "9.15.3",
   "type": "module",
   "description": "ERP Control Bolsas — Master Track. React + Vite + Firebase.",
   "scripts": {
     "dev": "vite --mode development",
-    "build": "tsc && vite build && npm --prefix functions run build",
+    "build": "tsc && vite build && npm --prefix functions run build && node scripts/package-release.js --manifest",
     "build:staging": "tsc && vite build --mode staging && npm --prefix functions run build",
     "build:prod": "tsc && vite build --mode production && npm --prefix functions run build",
     "preview": "vite preview",

@@ -11,7 +11,7 @@ import { useConfig } from '../../hooks/useConfig';
 import { useDuplicateRadar } from '../../hooks/useDuplicateRadar';
 import { parseXmlInvoice } from '../../lib/xmlParser';
 import { resolveInvoiceDates } from '../../lib/invoiceDates';
-import { computeItemInvoiceBreakdown } from '../../lib/deliveries';
+import { computeItemInvoiceBreakdown,getDeliveryBilling } from '../../lib/deliveries';
 import { useInvoiceActions } from '../OrderModal/useInvoiceActions';
 import { triggerHaptic } from '../../lib/hapticEngine';
 import { downloadPrefacturaExcel } from '../../lib/excelTemplateGenerator';
@@ -43,10 +43,10 @@ export function QuickInvoiceModal({
   // Encontrar todas las órdenes activas/abiertas del ERP
   const validOrders = useMemo(() => {
     const list = orders.filter((o) => {
-      if ((o as any).isDeleted) return false;
+      if (o.isDeleted||o.isSuperseded||(o.invoices||[]).some(invoice=>(invoice as any).quantityPending)) return false;
       const summary = getOrderSummary(o);
       const kOrd = Number(o.totalKilograms) || (o.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0), 0);
-      const available = (o.deliveries?.length ?? 0) > 0 ? summary.kilosDelivered : kOrd;
+      const available = (o.deliveries?.length ?? 0) > 0 ? summary.kilosBillableDelivered : kOrd;
       if (available - summary.kilosInvoiced <= 0.01) return false;
       const isPaidAndDelivered =
         (o.creditCycle?.status === 'collected' || o.creditCycle?.status === 'paid') &&
@@ -93,7 +93,7 @@ export function QuickInvoiceModal({
   const availableKilos = useMemo(() => {
     if (!selectedOrder) return 0;
     const summary = getOrderSummary(selectedOrder);
-    const unbilledDelivered = round2(Math.max(0, summary.kilosDelivered - summary.kilosInvoiced));
+    const unbilledDelivered = round2(Math.max(0, summary.kilosBillableDelivered - summary.kilosInvoiced));
     if ((selectedOrder.deliveries?.length ?? 0) > 0) return unbilledDelivered;
     const kOrd =
       Number(selectedOrder.totalKilograms) ||
@@ -114,7 +114,7 @@ export function QuickInvoiceModal({
       kilosOC,
       kilosDelivered: round2(summary.kilosDelivered),
       kilosInvoiced: round2(summary.kilosInvoiced),
-      kilosPending: round2(Math.max(0, summary.kilosDelivered - summary.kilosInvoiced)),
+      kilosPending: round2(Math.max(0, summary.kilosBillableDelivered - summary.kilosInvoiced)),
     };
   }, [selectedOrder]);
 
@@ -122,7 +122,7 @@ export function QuickInvoiceModal({
     const list: { orderId: string; oc: string; client: string; delivery: Delivery }[] = [];
     validOrders.forEach((o) => {
       (o.deliveries || []).forEach((d) => {
-        if (!d.invoiced && Number(d.kilos) > 0) {
+        if (getDeliveryBilling(d).pendingKilos>0) {
           list.push({
             orderId: o.id,
             oc: o.oc || o.folio || 'S/N',
@@ -167,8 +167,8 @@ export function QuickInvoiceModal({
       setConceptRows(rows);
     } else {
       const summary = getOrderSummary(order);
-      const pendingKilos = round2(Math.max(0, summary.kilosDelivered - summary.kilosInvoiced));
-      const defaultQty = pendingKilos > 0 ? pendingKilos : Number(order.totalKilograms) || 1000;
+      const pendingKilos = round2(Math.max(0, summary.kilosBillableDelivered - summary.kilosInvoiced));
+      const defaultQty = pendingKilos > 0 ? pendingKilos : Number(order.totalKilograms) || 0;
       setConceptRows([
         {
           id: `default_${Date.now()}`,

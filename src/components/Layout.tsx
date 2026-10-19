@@ -185,7 +185,7 @@ export default function Layout() {
       const st = summary.status;
       if (st === 'overdue') overdue++;
       else if (st === 'manual_review') review++;
-      if (summary.kilosDelivered > summary.kilosInvoiced + 0.01 && !o.isClosedShort) {
+      if (!summary.invoiceQuantityPending && summary.kilosBillableDelivered > summary.kilosInvoiced + 0.01 && !o.isClosedShort) {
         unbilledOrdersCount++;
       }
     }
