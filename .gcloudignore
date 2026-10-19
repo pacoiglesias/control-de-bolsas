@@ -1,0 +1,43 @@
+# .gcloudignore para Control de Bolsas ERP
+.gcloudignore
+.git
+.gitignore
+.env*
+.agents/
+.firebase/
+.github/
+
+# Source code
+src/
+functions/
+scripts/
+docs/
+public/
+
+# Node dependencies (no subir node_modules)
+node_modules/
+
+# Config files
+*.md
+*.json
+!package.json
+!dist/**/*.json
+*.ts
+*.tsx
+*.bat
+*.log
+*.zip
+*.bundle
+
+# Permitir archivos necesarios para App Engine
+!server.js
+!app.yaml
+
+# Test files
+vitest.config.*
+tsconfig.*
+vite.config.*
+firebase.json
+firestore.*
+storage.rules
+eslint.*

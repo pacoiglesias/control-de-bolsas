@@ -11,7 +11,7 @@ if "%COMMIT_MSG%"=="" set COMMIT_MSG=chore: deploy automatizado
 
 echo.
 echo =========================================
-echo  STEP 1/5 — Tests Unitarios
+echo  STEP 1/6 — Tests Unitarios
 echo =========================================
 call npx vitest run src/lib/__tests__
 if %ERRORLEVEL% NEQ 0 (
@@ -22,7 +22,7 @@ echo [OK] Todos los tests aprobados.
 
 echo.
 echo =========================================
-echo  STEP 2/5 — Build de Produccion
+echo  STEP 2/6 — Build de Produccion
 echo =========================================
 call npm run build
 if %ERRORLEVEL% NEQ 0 (
@@ -33,7 +33,7 @@ echo [OK] Build exitoso.
 
 echo.
 echo =========================================
-echo  STEP 3/5 — Git Commit
+echo  STEP 3/6 — Git Commit
 echo =========================================
 git add -A
 git diff --cached --quiet
@@ -46,18 +46,29 @@ if %ERRORLEVEL% EQU 0 (
 
 echo.
 echo =========================================
-echo  STEP 4/5 — Firebase Deploy (Hosting + Firestore + Storage + Functions)
+echo  STEP 4/6 — Firebase Deploy (Hosting + Firestore + Storage)
 echo =========================================
 call npx firebase deploy --only hosting,firestore,storage
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] Firebase deploy fallo.
     exit /b 1
 )
-echo [OK] Deploy completado.
+echo [OK] Firebase deploy completado.
 
 echo.
 echo =========================================
-echo  STEP 5/5 — Git Push (respaldo remoto)
+echo  STEP 5/6 — App Engine Deploy (Respaldo SPA)
+echo =========================================
+call gcloud app deploy app.yaml --project=control-de-bolsas-89c88 --quiet --version=v9-15-3
+if %ERRORLEVEL% NEQ 0 (
+    echo [WARN] App Engine deploy fallo — el hosting principal sigue activo.
+) else (
+    echo [OK] App Engine deploy completado.
+)
+
+echo.
+echo =========================================
+echo  STEP 6/6 — Git Push (respaldo remoto)
 echo =========================================
 git push origin main
 if %ERRORLEVEL% NEQ 0 (
@@ -69,6 +80,7 @@ if %ERRORLEVEL% NEQ 0 (
 echo.
 echo =========================================
 echo  PIPELINE COMPLETO - SISTEMA EN PRODUCCION
-echo  https://control-de-bolsas-89c88.web.app
+echo  Firebase:    https://control-de-bolsas-89c88.web.app
+echo  App Engine:  https://control-de-bolsas-89c88.uc.r.appspot.com
 echo =========================================
 endlocal

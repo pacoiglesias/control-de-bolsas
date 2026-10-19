@@ -23,7 +23,9 @@
     "deploy:prod": "firebase use prod && npm run build:prod && firebase deploy",
     "reauth": "autenticar_servicios.bat",
     "backup": "sh scripts/backup.sh",
-    "version:bump": "node scripts/bump_version.js"
+    "version:bump": "node scripts/bump_version.js",
+    "gcp-build": "echo 'Static SPA — skipping gcp-build'",
+    "start": "node server.js"
   },
   "dependencies": {
     "@types/file-saver": "^2.0.7",
