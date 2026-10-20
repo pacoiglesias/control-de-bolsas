@@ -4,6 +4,8 @@ import { doc, Timestamp } from 'firebase/firestore';
 import { db, PATHS } from '../../lib/firebase';
 import { safeUpdateDoc } from '../../lib/safeFirestore';
 import { OcClosureModal } from '../Orders/OcClosureModal';
+import { printSingleDeliveryRemision, printRemision } from '../OrderModal/orderModalPrint';
+import { triggerHaptic } from '../../lib/hapticEngine';
 import { Modal } from '../ui';
 import { money, toDate, fmtDate, fmtDayAndDate, toInputDate } from '../../lib/format';
 import type { PurchaseOrder, FinancialConfig } from '../../lib/types';
@@ -160,6 +162,42 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
       toast('Error al guardar fecha de entrega', 'bad');
     } finally {
       setSavingDeliveryDate(false);
+    }
+  };
+
+  const handlePrintHojaEntrega = (order: PurchaseOrder) => {
+    triggerHaptic('light');
+    const physicalDeliveries = (order.deliveries || []).filter(d => !(d as any).inferredFromInvoice);
+    const latestDelivery = physicalDeliveries[0] || (order.deliveries || [])[0];
+    const totalDelivered = (order.deliveries || []).reduce((s, d) => s + (Number(d.kilos) || 0), 0);
+
+    if (latestDelivery) {
+      printSingleDeliveryRemision({
+        folio: order.folio,
+        oc: order.oc,
+        client: order.client || 'Grupo Textil Providencia SA de CV',
+        department: order.department || (isOcTH(order.oc || order.folio || order.id || '') ? 'Textil Hogar / Almacén 1' : 'Planta P4 / Almacén'),
+        delivery: {
+          ...latestDelivery,
+          kilos: latestDelivery.kilos || totalDelivered,
+          docFolio: latestDelivery.docFolio || (order.invoices?.[0]?.folio) || 'S/F',
+          driver: latestDelivery.driver || 'Andrés (Maquila Textil Hogar)',
+        },
+        items: order.items,
+        provName: 'Andrés',
+      });
+      toast(`📄 Hoja de entrega de OC ${order.folio || order.oc} generada`, 'ok');
+    } else {
+      printRemision({
+        folio: order.folio,
+        oc: order.oc,
+        client: order.client || 'Grupo Textil Providencia SA de CV',
+        department: order.department || (isOcTH(order.oc || order.folio || order.id || '') ? 'Textil Hogar / Almacén 1' : 'Planta P4 / Almacén'),
+        items: order.items,
+        kilosNum: totalDelivered || order.totalKilograms,
+        provName: 'Andrés',
+      });
+      toast(`📄 Hoja de entrega de OC ${order.folio || order.oc} generada`, 'ok');
     }
   };
 
@@ -1132,6 +1170,44 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                               📲 Andrés ({Math.round(ordRem)} kg)
                             </button>
                           ) : null}
+                          {ordRem > 0 && (
+                            <button
+                              type="button"
+                              className="btn"
+                              onClick={() => handleOpenDateModal(ord)}
+                              style={{
+                                padding: '4px 8px',
+                                borderRadius: 8,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                background: 'rgba(59, 130, 246, 0.15)',
+                                color: '#60a5fa',
+                                border: '1px solid rgba(59, 130, 246, 0.35)',
+                                cursor: 'pointer',
+                              }}
+                              title={`Programar fecha para los ${Math.round(ordRem).toLocaleString('es-MX')} kg faltantes`}
+                            >
+                              📅 Programar ({Math.round(ordRem)} kg)
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="btn"
+                            onClick={() => handlePrintHojaEntrega(ord)}
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: 8,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              background: 'rgba(16, 185, 129, 0.15)',
+                              color: '#34d399',
+                              border: '1px solid rgba(16, 185, 129, 0.35)',
+                              cursor: 'pointer',
+                            }}
+                            title="Generar e imprimir Hoja de Entrega / Remisión oficial de báscula"
+                          >
+                            📄 Hoja Entrega
+                          </button>
                           <button
                             type="button"
                             className="btn"
@@ -1272,6 +1348,28 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                   }}
                 >
                   📂 Ver OC 14302
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => handlePrintHojaEntrega(navaActiveOrder)}
+                  style={{
+                    minHeight: 40,
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    color: '#34d399',
+                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                    padding: '9px 12px',
+                    borderRadius: 10,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Generar e imprimir la Hoja de Entrega / Vale Oficial de esta orden"
+                >
+                  📄 Hoja de Entrega
                 </button>
               </>
             ) : navaOrder?.isClosedShort ? (
