@@ -7,14 +7,15 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.15.4: Factura F-6392, Hojas de Entrega y Programación Textil Hogar',
+  version: 'v9.15.5: Pre-facturador CFDI 4.0 Evelia y Conciliación Automatizada',
   date: '19 de Octubre de 2026',
-  time: '18:15',
-  summary: 'Conciliación fiscal completa de la factura F-6392 ($45,640.20 MXN, 915 kg) bajo la OC 71/14302 (TH Nava), botones directos de Hoja de Entrega / Vale oficial de báscula y programador de fecha para los 2,099 kg restantes.',
+  time: '19:35',
+  summary: 'Módulo de Conciliación de Pagos y Contrarrecibos con cuadre de balance financiero en tiempo real, importación inteligente de textos de portal Providencia, liquidación de transferencias bancarias y Pre-facturador CFDI 4.0 configurable y editable para entregas de Evelia (9806 y 9807) y órdenes activas.',
   highlights: [
-    'Factura F-6392 registrada con UUID oficial, cálculo exacto de comisión de cobranza ($3,147.60 MXN) y maquila Andrés ($33,855.00 MXN).',
-    'Generación directa de Hoja de Entrega y Vale oficial de báscula desde las alertas ejecutivas de Textil Hogar y órdenes de compra.',
-    'Programador dinámico de fecha para la siguiente entrega de los 2,099 kg faltantes con reflejo en vivo en el expediente.',
-    'Suite de 458 pruebas unitarias pasando y build optimizado de producción.'
+    'Pre-facturador CFDI 4.0 configurable y editable con soporte para órdenes de Evelia (9806 con 2,478.35 kg y 9807 con 2,955.80 kg) y cualquier orden activa.',
+    'Generación oficial de XML CFDI 4.0 borrador (SAT 24111500, KGM, IVA 16%), Excel (.xlsx), PDF y mensaje de WhatsApp para el contador.',
+    'Módulo de Conciliación de Pagos y Contrarrecibos con auditoría matemática exacta (Facturado = Cobrado + Saldo Pendiente) y semáforo de cuadre.',
+    'Conciliador inteligente por pegado de texto con regex para folios Providencia (GT-XXXX, TH-XXXX y folios 6XXX) y guardado atómico con writeBatch.',
+    'Liquidación de pagos y transferencias bancarias en 1 clic con comprobante y actualización inmediata de cartera.'
   ],
 };

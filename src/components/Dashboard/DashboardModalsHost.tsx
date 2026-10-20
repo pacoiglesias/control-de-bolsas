@@ -23,6 +23,8 @@ const UniversalDocumentUploadModal = lazy(() => import('./UniversalDocumentUploa
 const PagarAndresModal = lazy(() => import('../Compras/PagarAndresModal').then(m => ({ default: m.PagarAndresModal })));
 const PantallaDiferenciasModal = lazy(() => import('../Audit/PantallaDiferenciasModal').then(m => ({ default: m.PantallaDiferenciasModal })));
 const DailyClosingModal = lazy(() => import('./DailyClosingModal').then(m => ({ default: m.DailyClosingModal })));
+const PrefacturadorCfdiModal = lazy(() => import('../FastFlows/PrefacturadorCfdiModal').then(m => ({ default: m.PrefacturadorCfdiModal })));
+const ConciliacionCobranzaModal = lazy(() => import('../Cobranza/ConciliacionCobranzaModal').then(m => ({ default: m.ConciliacionCobranzaModal })));
 
 export interface DashboardModalsHostProps {
   showDiferenciasModal?: boolean;
@@ -62,6 +64,12 @@ export interface DashboardModalsHostProps {
   setShowSincronizador: (v: boolean) => void;
   showUniversalUpload?: boolean;
   setShowUniversalUpload?: (v: boolean) => void;
+  showPrefacturadorModal?: boolean;
+  setShowPrefacturadorModal?: (v: boolean) => void;
+  selectedPrefacturaOrderId?: string | null;
+  setSelectedPrefacturaOrderId?: (id: string | null) => void;
+  showConciliacionModal?: boolean;
+  setShowConciliacionModal?: (v: boolean) => void;
 
   seguimientoOrders: PurchaseOrder[];
   activeOrders: PurchaseOrder[];
@@ -98,6 +106,9 @@ export function DashboardModalsHost(props: DashboardModalsHostProps) {
     showMagicPaste, setShowMagicPaste,
     showSincronizador, setShowSincronizador,
     showUniversalUpload, setShowUniversalUpload,
+    showPrefacturadorModal, setShowPrefacturadorModal,
+    selectedPrefacturaOrderId, setSelectedPrefacturaOrderId,
+    showConciliacionModal, setShowConciliacionModal,
     seguimientoOrders, activeOrders, globalOrders,
     expenses, purchases, config, settings, saldoCaja,
     cloudBackups, backupBusy, handleCreateBackup, handleRestoreBackup,
@@ -244,6 +255,28 @@ export function DashboardModalsHost(props: DashboardModalsHostProps) {
             config={config}
             saldoCaja={saldoCaja}
             onClose={() => setShowCierreDiarioModal(false)}
+          />
+        )}
+
+        {showPrefacturadorModal && setShowPrefacturadorModal && (
+          <PrefacturadorCfdiModal
+            orders={globalOrders}
+            initialOrderId={selectedPrefacturaOrderId}
+            onClose={() => {
+              setShowPrefacturadorModal(false);
+              if (setSelectedPrefacturaOrderId) setSelectedPrefacturaOrderId(null);
+            }}
+          />
+        )}
+
+        {showConciliacionModal && setShowConciliacionModal && (
+          <ConciliacionCobranzaModal
+            orders={globalOrders}
+            onClose={() => setShowConciliacionModal(false)}
+            onOpenOrder={(order) => {
+              setShowConciliacionModal(false);
+              nav(`/ordenes?abrir=${order.id}`);
+            }}
           />
         )}
       </Suspense>

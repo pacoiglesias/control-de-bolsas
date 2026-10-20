@@ -40,6 +40,8 @@ interface ExecutivePriorityAlertsProps {
   config: FinancialConfig;
   onOpenQuickInvoice: (orderId?: string | null) => void;
   onOpenQuickCollection: () => void;
+  onOpenPrefactura?: (orderId?: string | null) => void;
+  onOpenConciliacion?: () => void;
 }
 
 // ─── Helpers Puros ────────────────────────────────────────────────────────────
@@ -132,6 +134,8 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
   config,
   onOpenQuickInvoice,
   onOpenQuickCollection,
+  onOpenPrefactura,
+  onOpenConciliacion,
 }) => {
   const nav = useNavigate();
   const toast = useToast();
@@ -849,6 +853,31 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {onOpenConciliacion && (
+              <button
+                type="button"
+                className="btn"
+                onClick={onOpenConciliacion}
+                style={{
+                  minHeight: 38,
+                  padding: '6px 14px',
+                  borderRadius: 10,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 10px rgba(59, 130, 246, 0.3)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <span>⚖️</span>
+                <span>Conciliar Contrarrecibos</span>
+              </button>
+            )}
             {orphanInvoices.some((i) => i.department === 'TH') && (
               <button
                 type="button"
@@ -1371,6 +1400,29 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                 >
                   📄 Hoja de Entrega
                 </button>
+                {onOpenPrefactura && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => onOpenPrefactura(navaActiveOrder.id)}
+                    style={{
+                      minHeight: 40,
+                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '9px 12px',
+                      borderRadius: 10,
+                      fontSize: 12,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                    }}
+                    title="Abrir Pre-facturador CFDI 4.0 para configurar o descargar XML/Excel"
+                  >
+                    🧾 Pre-factura CFDI
+                  </button>
+                )}
               </>
             ) : navaOrder?.isClosedShort ? (
               <>
@@ -1704,23 +1756,45 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                           </div>
                           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                             {ordPatio > 0 ? (
-                              <button
-                                type="button"
-                                className="btn"
-                                onClick={() => onOpenQuickInvoice(ord.id)}
-                                style={{
-                                  padding: '4px 10px',
-                                  borderRadius: 8,
-                                  fontSize: 11,
-                                  fontWeight: 800,
-                                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                  color: '#fff',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                ⚡ Facturar ({Math.round(ordPatio)} kg)
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  className="btn"
+                                  onClick={() => onOpenQuickInvoice(ord.id)}
+                                  style={{
+                                    padding: '4px 10px',
+                                    borderRadius: 8,
+                                    fontSize: 11,
+                                    fontWeight: 800,
+                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                    color: '#fff',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  ⚡ Facturar ({Math.round(ordPatio)} kg)
+                                </button>
+                                {onOpenPrefactura && (
+                                  <button
+                                    type="button"
+                                    className="btn"
+                                    onClick={() => onOpenPrefactura(ord.id)}
+                                    style={{
+                                      padding: '4px 9px',
+                                      borderRadius: 8,
+                                      fontSize: 11,
+                                      fontWeight: 800,
+                                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                                      color: '#fff',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                    }}
+                                    title="Abrir Pre-facturador CFDI 4.0 para configurar o descargar XML/Excel"
+                                  >
+                                    🧾 Pre-factura CFDI
+                                  </button>
+                                )}
+                              </>
                             ) : ordRem > 0 ? (
                               <button
                                 type="button"
@@ -1889,6 +1963,30 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
                   >
                     ⚡ Facturar Entregas
                   </button>
+                  {onOpenPrefactura && (
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => onOpenPrefactura(eveliaOpenOrders[0]?.id)}
+                      style={{
+                        minHeight: 40,
+                        background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                        color: '#fff',
+                        border: 'none',
+                        padding: '9px 14px',
+                        borderRadius: 10,
+                        fontSize: 12.5,
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                        boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
+                      }}
+                      title="Abrir Pre-facturador CFDI 4.0 para las entregas de Evelia (9806 y 9807)"
+                    >
+                      🧾 Pre-facturador CFDI 4.0
+                    </button>
+                  )}
                 </>
               ) : hasNewOc && !isNewOcPendingInvoice && !eveliaActiveOrder ? (
                 <>

@@ -110,6 +110,9 @@ export default function Dashboard() {
   const [showQuickEdit, setShowQuickEdit] = useState(false);
   const [showDiferenciasModal, setShowDiferenciasModal] = useState(false);
   const [showCierreDiarioModal, setShowCierreDiarioModal] = useState(false);
+  const [showPrefacturadorModal, setShowPrefacturadorModal] = useState(false);
+  const [selectedPrefacturaOrderId, setSelectedPrefacturaOrderId] = useState<string | null>(null);
+  const [showConciliacionModal, setShowConciliacionModal] = useState(false);
 
   // Cerrar menús desplegables al hacer clic fuera
   useEffect(() => {
@@ -454,6 +457,11 @@ export default function Dashboard() {
               setShowQuickInvoice(true);
             }}
             onOpenQuickCollection={() => setShowQuickCollection(true)}
+            onOpenPrefactura={(orderId) => {
+              if (orderId) setSelectedPrefacturaOrderId(orderId);
+              setShowPrefacturadorModal(true);
+            }}
+            onOpenConciliacion={() => setShowConciliacionModal(true)}
             onOpenQuickDelivery={(orderId) => {
               if (orderId) setSelectedDeliveryOrderId(orderId);
               setShowQuickDelivery(true);
@@ -571,6 +579,12 @@ export default function Dashboard() {
         setShowSincronizador={setShowSincronizador}
         showUniversalUpload={showUniversalUpload}
         setShowUniversalUpload={setShowUniversalUpload}
+        showPrefacturadorModal={showPrefacturadorModal}
+        setShowPrefacturadorModal={setShowPrefacturadorModal}
+        selectedPrefacturaOrderId={selectedPrefacturaOrderId}
+        setSelectedPrefacturaOrderId={setSelectedPrefacturaOrderId}
+        showConciliacionModal={showConciliacionModal}
+        setShowConciliacionModal={setShowConciliacionModal}
         seguimientoOrders={seguimientoOrders}
         activeOrders={activeOrders}
         globalOrders={globalOrders}
