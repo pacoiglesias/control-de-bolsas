@@ -1,4 +1,5 @@
 import type { NavigateFunction } from 'react-router-dom';
+import { PendingDeliveriesExecutiveBoard } from '../PendingDeliveriesExecutiveBoard';
 import { ExecutivePriorityAlerts } from '../ExecutivePriorityAlerts';
 import { PriorityActionQueue } from '../PriorityActionQueue';
 import { ProvidenciaCaptureReview } from '../../Upload/ProvidenciaCaptureReview';
@@ -46,6 +47,15 @@ export function DashboardExecutiveView({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* 0. TABLERO DE CONTROL TOTAL: QUÉ FALTA POR ENTREGAR DE LAS OCs ABIERTAS Y VIGENTES */}
+      <PendingDeliveriesExecutiveBoard
+        orders={seguimientoOrders}
+        saldoCaja={saldoCaja}
+        onOpenQuickDelivery={onOpenQuickDelivery}
+        onOpenQuickInvoice={onOpenQuickInvoice}
+        onOpenPrefactura={onOpenPrefactura}
+      />
+
       {canOperate && (
         <nav className="work-shortcuts" aria-label="Acciones de operación diaria">
           {onOpenUniversalUpload && (

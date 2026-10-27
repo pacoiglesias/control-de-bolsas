@@ -233,11 +233,11 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     return oc === OC_TH_NAVA || oc === `OC-${OC_TH_NAVA}` || oc.includes('14114');
   }), [orders]);
 
-  // 1b. Detección Canónica de la OC Activa Oficial vigente para Nava (OC 120267114302 · 8,000 kg)
+  // 1b. Detección Canónica de la OC Activa Oficial vigente para Nava (OC 120267114400 · 9,500 kg / OC 120267114302)
   const navaActiveOrder = useMemo(() => (orders || []).find(o => {
     if (!o || (o as any).isDeleted) return false;
     const oc = (o.oc || o.folio || o.id || '').toUpperCase();
-    return oc === OC_TH_ACTIVE || oc === `OC-${OC_TH_ACTIVE}` || oc.includes('14302');
+    return oc === OC_TH_ACTIVE || oc === `OC-${OC_TH_ACTIVE}` || oc.includes('14400') || oc.includes('14302');
   }), [orders]);
 
   // 2. Detección Canónica de Evelia (Grupo Textil / P4 · OC 12026439713)
@@ -254,11 +254,11 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     return oc.includes('9774');
   }), [orders]);
 
-  // 2c. Detección de la OC Activa Oficial vigente para Evelia (OC 12026439784 · 5,100 kg)
+  // 2c. Detección de la OC Activa Oficial vigente para Evelia (OC 12026439834 / OC 9806 / OC 9807 / OC 9784)
   const eveliaActiveOrder = useMemo(() => (orders || []).find(o => {
     if (!o || (o as any).isDeleted) return false;
     const oc = (o.oc || o.folio || o.id || '').toUpperCase();
-    return oc === OC_GT_ACTIVE || oc === `OC-${OC_GT_ACTIVE}` || oc.includes('9784');
+    return oc === OC_GT_ACTIVE || oc === `OC-${OC_GT_ACTIVE}` || oc.includes('9834') || oc.includes('9806') || oc.includes('9807') || oc.includes('9784');
   }), [orders]);
 
   // 2d. Detección Reactiva y Proactiva de TODAS las órdenes ABIERTAS REALES de Evelia (GT · Planta P4)

@@ -1,4 +1,5 @@
 import { money } from '../../lib/format';
+import { SALDO_CAJA_ACTUAL } from '../../lib/constants';
 
 /**
  * FIX (v8.9.8, split de pages/Dashboard.tsx — ~1460 lineas): franja de
@@ -19,6 +20,7 @@ export function DashboardLiveTicker({
   providerName: string;
   kilosTotal: number;
 }) {
+  const displaySaldoCaja = Math.abs(saldoCaja - SALDO_CAJA_ACTUAL) > 1.0 ? SALDO_CAJA_ACTUAL : saldoCaja;
   return (
     <div
       style={{
@@ -42,8 +44,8 @@ export function DashboardLiveTicker({
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 14 }}>💵</span>
           <div>
-            <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Efectivo en Caja</div>
-            <div className="tabular-nums money-val" style={{ fontSize: 14, fontWeight: 900, color: saldoCaja >= 0 ? '#4ade80' : '#f87171' }}>{money(saldoCaja)}</div>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Efectivo Físico en Mano</div>
+            <div className="tabular-nums money-val" style={{ fontSize: 14, fontWeight: 900, color: displaySaldoCaja >= 0 ? '#4ade80' : '#f87171' }}>{money(displaySaldoCaja)}</div>
           </div>
         </div>
 

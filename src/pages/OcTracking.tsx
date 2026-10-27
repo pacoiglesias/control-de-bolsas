@@ -25,6 +25,8 @@ import type { PurchaseOrder, Delivery } from '../lib/types';
 import {buildOcGroups, type OcGroup} from '../lib/ocTracking';
 import {isProductionTracked} from '../lib/productionTracking';
 import { OcClientStatusReport } from '../components/Orders/OcClientStatusReport';
+import { PendingDeliveriesExecutiveBoard } from '../components/Dashboard/PendingDeliveriesExecutiveBoard';
+import { SALDO_CAJA_ACTUAL } from '../lib/constants';
 
 
 export default function OcTracking() {
@@ -646,6 +648,24 @@ export default function OcTracking() {
           }}
         />
       </div>
+
+      {/* ─── TABLERO EJECUTIVO DE VISIBILIDAD TOTAL: QUÉ FALTA POR ENTREGAR ─── */}
+      <PendingDeliveriesExecutiveBoard
+        orders={orders}
+        saldoCaja={SALDO_CAJA_ACTUAL}
+        onOpenQuickDelivery={(orderId) => {
+          const ord = orders.find(o => o.id === orderId);
+          if (ord) setOrderParaEntrega(ord);
+          else if (orders[0]) setOrderParaEntrega(orders[0]);
+        }}
+        onOpenQuickInvoice={(orderId) => {
+          const ord = orders.find(o => o.id === orderId);
+          if (ord) {
+            setSelectedOrder(ord);
+            setSelectedOrderTab('facturas');
+          }
+        }}
+      />
 
       {/* KPIs Reales Interactivos */}
       <div className="kpi-grid" style={{ marginBottom: 20, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>

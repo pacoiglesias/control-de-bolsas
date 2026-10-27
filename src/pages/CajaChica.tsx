@@ -16,6 +16,8 @@ import { triggerHaptic } from '../lib/hapticEngine';
 import { promptDialog } from '../lib/promptDialog';
 import type { Expense } from '../lib/types';
 import { useAndresStats } from '../hooks/useAndresStats';
+import { SALDO_CAJA_ACTUAL } from '../lib/constants';
+import { calibrateCajaChicaToOfficial } from '../lib/cajaChicaService';
 
 // Subcomponentes modulares de Caja Chica
 import { CajaChicaKpis } from '../components/CajaChica/CajaChicaKpis';
@@ -159,11 +161,22 @@ export default function CajaChica() {
     toast('📥 Archivo de Excel (CSV) descargado con éxito.', 'ok');
   }
 
+  async function handleCalibrateOfficial() {
+    try {
+      triggerHaptic('medium');
+      const res = await calibrateCajaChicaToOfficial(saldo);
+      triggerHaptic('success');
+      toast(`✅ Saldo de caja calibrado a ${money(res.target)} (Ajuste: ${res.diff > 0 ? '+' : ''}${money(res.diff)}).`, 'ok');
+    } catch (e) {
+      toast(`❌ Error al calibrar caja: ${(e as Error).message}`, 'bad');
+    }
+  }
+
   async function handleCalibrateCaja() {
     const input = await promptDialog({
       title: '🔧 Calibrar Saldo en Efectivo de Caja',
       message: `El saldo actual calculado en sistema es ${money(saldo)}. Ingresa el saldo físico real en mano:`,
-      defaultValue: saldo === 0 ? '451848.56' : String(saldo),
+      defaultValue: String(SALDO_CAJA_ACTUAL),
       confirmLabel: 'Ajustar Saldo',
     });
     if (input === null) return;
@@ -218,6 +231,8 @@ export default function CajaChica() {
   if (role !== 'admin') return <Navigate to="/" replace />;
   if (error) return <div className="alert bad">{error}</div>;
 
+  const isSaldoDifferentFromOfficial = Math.abs(saldo - SALDO_CAJA_ACTUAL) > 1.0;
+
   return (
     <>
       <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
@@ -225,8 +240,17 @@ export default function CajaChica() {
           <h1>FLUJO DE EFECTIVO & REPARTO</h1>
           <p>Control directo del dinero recibido de contadores, pagos a {provName} y retiro de utilidades.</p>
         </div>
-        <div>
-          <button className="btn" onClick={() => void handleCalibrateCaja()} style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontWeight: 700 }}>🔧 Calibrar Caja</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {isSaldoDifferentFromOfficial && (
+            <button
+              className="btn"
+              onClick={() => void handleCalibrateOfficial()}
+              style={{ background: '#f97316', color: '#fff', border: 'none', fontWeight: 800 }}
+            >
+              ⚡ Calibrar a {money(SALDO_CAJA_ACTUAL)} (Oficial)
+            </button>
+          )}
+          <button className="btn" onClick={() => void handleCalibrateCaja()} style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', fontWeight: 700 }}>🔧 Calibrar Manual</button>
         </div>
       </div>
 
