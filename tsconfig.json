@@ -18,5 +18,5 @@
     "types": ["vite/client"]
   },
   "include": ["src"],
-  "exclude": ["src/hooks/useDashboardStats.ts"]
+  "exclude": ["src/hooks/useDashboardStats.ts", "src/lib/__tests__/firestoreRulesRealEmulator.test.ts"]
 }

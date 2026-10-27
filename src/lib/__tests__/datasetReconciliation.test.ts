@@ -87,19 +87,19 @@ describe('Auditoría y Conciliación Matemática de Cartera Oficial', () => {
     expect(sumaValidada).toBe(896403.46);
   });
 
-  it('debe validar la Cartera Oficial Activa Vigente en $896,403.46 con los 12 CRs del portal', () => {
+  it('debe validar la Cartera Oficial Activa Vigente en $359,111.06 con los 4 CRs del portal', () => {
     const totalActivo = round2(CARTERA_OFICIAL.reduce((sum, item) => sum + item.monto, 0));
-    expect(totalActivo).toBe(896403.46);
-    expect(CARTERA_OFICIAL.length).toBe(12);
-    expect(TOTAL_CARTERA_OFICIAL).toBe(896403.46);
+    expect(totalActivo).toBe(359111.06);
+    expect(CARTERA_OFICIAL.length).toBe(4);
+    expect(TOTAL_CARTERA_OFICIAL).toBe(359111.06);
   });
 
-  it('debe validar la Cartera Pagada Oficial en $1,032,087.04 y el Saldo en Efectivo de Caja en $844,526.90', () => {
+  it('debe validar la Cartera Pagada Oficial en $1,032,087.04 y el Saldo en Efectivo de Caja en $451,848.56', () => {
     const totalPagado = round2(CARTERA_PAGADA_OFICIAL.reduce((sum, item) => sum + item.monto, 0));
     expect(totalPagado).toBe(1032087.04);
     expect(CARTERA_PAGADA_OFICIAL.length).toBe(10);
     expect(TOTAL_CARTERA_PAGADA).toBe(1032087.04);
-    expect(SALDO_CAJA_ACTUAL).toBe(844526.90);
+    expect(SALDO_CAJA_ACTUAL).toBe(451848.56);
   });
 });
 

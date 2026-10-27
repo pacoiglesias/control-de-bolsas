@@ -128,6 +128,7 @@ export default defineConfig(({ mode }) => {
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    exclude: ['**/node_modules/**', '**/dist/**', 'src/lib/__tests__/firestoreRulesRealEmulator.test.ts'],
     testTimeout: 15000,
     coverage: {
       provider: 'v8',

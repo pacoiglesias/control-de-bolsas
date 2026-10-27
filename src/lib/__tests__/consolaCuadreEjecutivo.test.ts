@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { round2 } from '../finance';
-import { CARTERA_OFICIAL, SALDO_CAJA_ACTUAL } from '../constants';
+import { CARTERA_OFICIAL, SALDO_CAJA_ACTUAL, TOTAL_CARTERA_OFICIAL } from '../constants';
 
 describe('Consola de Cuadre Ejecutivo Directo', () => {
   it('calcula correctamente el delta de efectivo en Caja Chica', () => {
-    const currentSaldoCaja = 800000;
-    const targetCaja = 844526.90;
+    const currentSaldoCaja = 400000;
+    const targetCaja = SALDO_CAJA_ACTUAL;
     const delta = round2(targetCaja - currentSaldoCaja);
-    expect(delta).toBe(44526.90);
+    expect(delta).toBe(51848.56);
     expect(delta > 0).toBe(true); // Requiere ingreso contable de calibración
   });
 
@@ -19,12 +19,10 @@ describe('Consola de Cuadre Ejecutivo Directo', () => {
   });
 
   it('cuadra el saldo oficial de cartera Providencia en los 4 rubros maestros', () => {
-    const totalCrs = CARTERA_OFICIAL.reduce((sum, c) => sum + c.monto, 0);
-    const revision = 174580.00; // F-6363 ($74,820.00) + F-6367 ($49,880.00) + F-6368 ($49,880.00)
-    const totalDeuda = round2(totalCrs + revision);
-
-    expect(totalCrs).toBe(896403.46);
-    expect(totalDeuda).toBe(1070983.46);
-    expect(SALDO_CAJA_ACTUAL).toBe(844526.90);
+    const totalCrs = round2(CARTERA_OFICIAL.reduce((sum, c) => sum + c.monto, 0));
+    expect(totalCrs).toBe(359111.06);
+    expect(TOTAL_CARTERA_OFICIAL).toBe(359111.06);
+    expect(CARTERA_OFICIAL.length).toBe(4);
+    expect(SALDO_CAJA_ACTUAL).toBe(451848.56);
   });
 });

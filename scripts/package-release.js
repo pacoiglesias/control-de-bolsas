@@ -6,7 +6,8 @@ import JSZip from 'jszip';
 
 const root = process.cwd();
 const output = path.resolve(root, '../entrega-final');
-if (path.basename(root) !== 'control-de-bolsas' || path.basename(output) !== 'entrega-final') throw new Error('Unexpected workspace');
+const baseName = path.basename(root).toLowerCase();
+if ((!baseName.includes('control') && !baseName.includes('bolsas')) || path.basename(output) !== 'entrega-final') throw new Error('Unexpected workspace');
 const sha = data => crypto.createHash('sha256').update(data).digest('hex');
 const version = JSON.parse(fs.readFileSync('package.json')).version;
 const pending=process.argv.includes('--pending');

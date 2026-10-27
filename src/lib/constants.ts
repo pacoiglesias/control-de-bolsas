@@ -11,8 +11,18 @@
 // Cartera Oficial Activa — 10 Contrarecibos Vigentes del Portal Providencia
 // ---------------------------------------------------------------------------
 
-/** Folios de contrarecibo activos por cobrar. */
+/** Folios de contrarecibo activos por cobrar (Únicamente los 4 vigentes reportados). */
 export const OFFICIAL_VALID_CRS = [
+  'GT-1106',
+  'TH-1271',
+  'GT-1074',
+  'TH-1237',
+] as const;
+
+export type OfficialCR = (typeof OFFICIAL_VALID_CRS)[number];
+
+/** Contrarecibos Oficiales Ya Pagados y Validados por Providencia */
+export const OFFICIAL_PAID_CRS_LIST = [
   'GT-1047',
   'TH-1195',
   'GT-1020',
@@ -27,12 +37,6 @@ export const OFFICIAL_VALID_CRS = [
   'GT-874',
   'TH-990',
   'TH-946',
-] as const;
-
-export type OfficialCR = (typeof OFFICIAL_VALID_CRS)[number];
-
-/** Contrarecibos Oficiales Ya Pagados y Validados por Providencia ($1,032,087.04 MXN) */
-export const OFFICIAL_PAID_CRS_LIST = [
   'TH-912',
   'TH-879',
   'TH-836',
@@ -46,24 +50,40 @@ export const OFFICIAL_PAID_CRS_LIST = [
 ] as const;
 
 /** Saldo oficial actual en efectivo en caja al día de hoy */
-export const SALDO_CAJA_ACTUAL = 844526.90;
+export const SALDO_CAJA_ACTUAL = 451848.56;
 
 // ---------------------------------------------------------------------------
 // Órdenes de Compra Maestras y Oficiales de Providencia
 // ---------------------------------------------------------------------------
 
-export const OC_TH_NAVA = '120267114114';    // Textil Hogar — Nava / Torre Lamuño (Histórica)
-export const OC_GT_EVELIA = '12026439713';   // Grupo Textil — Evelia / P4 (Histórica)
-export const OC_GT_NEW = '12026439753';      // Grupo Textil — P4-ALM (No. Ord. 43/9753 · 4,500 kg)
-export const OC_TH_ACTIVE = '120267114302';   // Textil Hogar — Nava / Torre Lamuño (No. Ord. 71/14302 · 8,000 kg) - ACTIVA
-export const OC_GT_ACTIVE = '12026439784';   // Grupo Textil — Evelia / P4 (No. Ord. 43/9784 · 5,100 kg) - ACTIVA
+export const OC_TH_ACTIVE = '120267114400';   // Textil Hogar — Nava (No. Ord. 71/14400 · 9,500 kg · $418,000) - ACTIVA
+export const OC_GT_ACTIVE = '12026439834';    // Grupo Textil — Evelia / P4 (No. Ord. 43/9834 · 1,300 kg · $55,900) - ACTIVA
+export const OC_GT_9806 = '12026439806';      // Grupo Textil — Evelia / P4 (No. Ord. 43/9806 · 2,500 kg)
+export const OC_GT_9807 = '12026439807';      // Grupo Textil — Evelia / P4 (No. Ord. 43/9807 · 3,000 kg)
+export const OC_TH_14302 = '120267114302';    // Textil Hogar — Nava (No. Ord. 71/14302 · 8,000 kg)
+export const OC_GT_9784 = '12026439784';      // Grupo Textil — Evelia / P4 (No. Ord. 43/9784 · 5,100 kg)
+export const OC_TH_NAVA = '120267114114';     // Textil Hogar — Nava / Torre Lamuño (Histórica)
+export const OC_GT_EVELIA = '12026439713';    // Grupo Textil — Evelia / P4 (Histórica)
+export const OC_GT_NEW = '12026439753';       // Grupo Textil — P4-ALM (No. Ord. 43/9753 · 4,500 kg)
 
-export const MASTER_OCS = [OC_TH_ACTIVE, OC_GT_ACTIVE, OC_TH_NAVA, OC_GT_EVELIA, OC_GT_NEW] as const;
+export const MASTER_OCS = [
+  OC_TH_ACTIVE,
+  OC_GT_ACTIVE,
+  OC_GT_9806,
+  OC_GT_9807,
+  OC_TH_14302,
+  OC_GT_9784,
+  OC_TH_NAVA,
+  OC_GT_EVELIA,
+  OC_GT_NEW,
+] as const;
 
 /** Detecta si un string corresponde a la OC de TH (Nava) */
 export function isOcTH(s: string): boolean {
   const clean = s.toUpperCase().replace(/[^A-Z0-9]/g, '');
   return (
+    clean.includes('14400') ||
+    clean.includes('120267114400') ||
     clean.includes('14302') ||
     clean.includes('120267114302') ||
     clean.includes('14114') ||
@@ -77,6 +97,9 @@ export function isOcTH(s: string): boolean {
 export function isOcGT(s: string): boolean {
   const clean = s.toUpperCase().replace(/[^A-Z0-9]/g, '');
   return (
+    clean.includes('9834') || clean.includes('12026439834') ||
+    clean.includes('9807') || clean.includes('12026439807') ||
+    clean.includes('9806') || clean.includes('12026439806') ||
     clean.includes('9784') || clean.includes('12026439784') ||
     clean.includes('9753') || clean.includes('12026439753') ||
     clean.includes('9713') || clean.includes('12026439713')
@@ -100,32 +123,24 @@ export const DEPT_TH_ALMACEN = 'TH-ALMACEN-1';
 export const DEPT_GT_ALMACEN = 'P4-ALM';
 
 // ---------------------------------------------------------------------------
-// Padrón Oficial de Cartera Activa Vigente ($896,403.46 MXN)
-// 12 Contrarecibos Vigentes del Portal Providencia
+// Padrón Oficial de Cartera Activa Vigente ($359,111.06 MXN)
+// 4 Contrarecibos Vigentes del Portal Providencia
 // ---------------------------------------------------------------------------
 
 export const CARTERA_OFICIAL = [
-  { cr: 'GT-1047', monto:  82302.00, factura: '6352 6353', dept: DEPT_GT, issueDate: '2026-10-05', dueDate: '2026-11-04' },
-  { cr: 'TH-1195', monto:  74820.00, factura: '6334',      dept: DEPT_TH, issueDate: '2026-10-05', dueDate: '2026-11-04' },
-  { cr: 'GT-1020', monto:  14864.24, factura: '6302',      dept: DEPT_GT, issueDate: '2026-09-28', dueDate: '2026-10-28' },
-  { cr: 'TH-1158', monto:  99061.68, factura: '6307',      dept: DEPT_TH, issueDate: '2026-09-28', dueDate: '2026-10-28' },
-  { cr: 'GT-993',  monto: 110434.32, factura: '6284 6285', dept: DEPT_GT, issueDate: '2026-09-21', dueDate: '2026-10-21' },
-  { cr: 'GT-962',  monto: 110783.48, factura: '6275 6276', dept: DEPT_GT, issueDate: '2026-09-14', dueDate: '2026-10-14' },
-  { cr: 'TH-1103', monto:  74820.00, factura: '6271',      dept: DEPT_TH, issueDate: '2026-09-14', dueDate: '2026-10-14' },
-  { cr: 'GT-929',  monto:  83499.12, factura: '6267 6268', dept: DEPT_GT, issueDate: '2026-09-07', dueDate: '2026-10-07' },
-  { cr: 'TH-1068', monto:  72086.58, factura: '6266',      dept: DEPT_TH, issueDate: '2026-09-07', dueDate: '2026-10-07' },
-  { cr: 'GT-904',  monto:  49032.04, factura: '6224',      dept: DEPT_GT, issueDate: '2026-08-31', dueDate: '2026-09-30' },
-  { cr: 'TH-1030', monto:  74820.00, factura: '6200',      dept: DEPT_TH, issueDate: '2026-08-31', dueDate: '2026-09-30' },
-  { cr: 'GT-874',  monto:  49880.00, factura: '6193',      dept: DEPT_GT, issueDate: '2026-08-24', dueDate: '2026-09-23' },
+  { cr: 'GT-1106', monto:  85544.20, factura: '6380', dept: DEPT_GT, issueDate: '2026-10-19', dueDate: '2026-11-18' },
+  { cr: 'TH-1271', monto:  98986.86, factura: '6381', dept: DEPT_TH, issueDate: '2026-10-19', dueDate: '2026-11-18' },
+  { cr: 'GT-1074', monto:  99760.00, factura: '6372', dept: DEPT_GT, issueDate: '2026-10-12', dueDate: '2026-11-11' },
+  { cr: 'TH-1237', monto:  74820.00, factura: '6373', dept: DEPT_TH, issueDate: '2026-10-12', dueDate: '2026-11-11' },
 ] as const;
 
-export const TOTAL_CARTERA_OFICIAL = 896403.46;
+export const TOTAL_CARTERA_OFICIAL = 359111.06;
 
 // ---------------------------------------------------------------------------
-// Vencidos Oficiales Providencia ($49,880.00 MXN)
+// Vencidos Oficiales Providencia (Referencia de Auditoría $49,880.00 MXN · GT-874)
 // ---------------------------------------------------------------------------
 export const TOTAL_VENCIDOS_OFICIAL = 49880.00;
-export const CR_VENCIDO_OFICIAL = 'GT-874'; // Factura 6193 · Vencimiento: 23/09/2026
+export const CR_VENCIDO_OFICIAL = 'GT-874';
 
 // ---------------------------------------------------------------------------
 // Facturas en Revisión / Pendientes de Asignación de CR ($174,580.00 MXN)

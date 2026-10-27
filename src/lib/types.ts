@@ -291,6 +291,23 @@ export const CANONICAL_GT_ITEMS_439784: PurchaseOrderItem[] = [
   { id: 'it-gt-9784-5', code: 'EGBO000093-SC', description: 'BOLSA POLIETILENO 100 X 95 CM (60+40x95)', quantity: 1000, deliveredQuantity: 500, unitPrice: 43.0, amount: 43000, unit: 'Kilos' },
 ];
 
+export const CANONICAL_TH_ITEMS_7114400: PurchaseOrderItem[] = [
+  { id: 'it-th-14400-1', code: 'egbo000107-sc', description: 'BULTO POLIETILENO 48 x 17 + 17 x 140 CM CAL 250', quantity: 1000, deliveredQuantity: 978.96, unitPrice: 44.0, amount: 44000, unit: 'Kilos' },
+  { id: 'it-th-14400-2', code: 'enbo000167-bl', description: 'BOLSA POLIETILENO 55 CM X 126 CM Blanco', quantity: 1000, deliveredQuantity: 1000.0, unitPrice: 44.0, amount: 44000, unit: 'Kilos' },
+  { id: 'it-th-14400-3', code: 'egbo000103-sc', description: 'BULTO 80 X 20 +20 X 160 *250', quantity: 2000, deliveredQuantity: 1487.28, unitPrice: 44.0, amount: 88000, unit: 'Kilos' },
+  { id: 'it-th-14400-4', code: 'EGBO000101-SC', description: 'BULTO 60 X 20 + 20 X 120 CM', quantity: 500, deliveredQuantity: 500.0, unitPrice: 44.0, amount: 22000, unit: 'Kilos' },
+  { id: 'it-th-14400-5', code: 'enbo000084-sc', description: 'BOLSA POLIETILENO 55 CM x 55 CM', quantity: 1000, deliveredQuantity: 1000.0, unitPrice: 44.0, amount: 44000, unit: 'Kilos' },
+  { id: 'it-th-14400-6', code: 'enbo000006-sc', description: 'BOLSA POLIETILENO 77 CM X 55 CM _Sin Color', quantity: 2000, deliveredQuantity: 1414.52, unitPrice: 44.0, amount: 88000, unit: 'Kilos' },
+  { id: 'it-th-14400-7', code: 'ENBO000007-SC', description: 'BOLSA POLIETILENO 50 CM x 55 CM _Sin Color', quantity: 2000, deliveredQuantity: 1750.0, unitPrice: 44.0, amount: 88000, unit: 'Kilos' },
+];
+
+export const CANONICAL_GT_ITEMS_439834: PurchaseOrderItem[] = [
+  { id: 'it-gt-9834-1', code: 'ENBO000013-SC', description: 'BOLSA POLIETILENO 70 CM X 50 CM _Sin Color', quantity: 300, deliveredQuantity: 0, unitPrice: 43.0, amount: 12900, unit: 'Kilos' },
+  { id: 'it-gt-9834-2', code: 'ENBO000055-SC', description: 'BOLSA POLIETILENO 30 X 48 CM _Sin Color', quantity: 200, deliveredQuantity: 0, unitPrice: 43.0, amount: 8600, unit: 'Kilos' },
+  { id: 'it-gt-9834-3', code: 'ENBO000457-SC', description: 'BOLSA POLIETILENO 50 X 60 _Sin Color', quantity: 300, deliveredQuantity: 0, unitPrice: 43.0, amount: 12900, unit: 'Kilos' },
+  { id: 'it-gt-9834-4', code: 'EGBO000045-SC', description: 'BULTO 43 +17 + 17 X 65 CM _Sin Color', quantity: 500, deliveredQuantity: 0, unitPrice: 43.0, amount: 21500, unit: 'Kilos' },
+];
+
 /** Product lines come from the saved order, never from its department or number. */
 export function getEffectiveOrderItems(order?: PurchaseOrder | null): PurchaseOrderItem[] {
   return order?.items || [];
