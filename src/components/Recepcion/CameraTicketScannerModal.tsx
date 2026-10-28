@@ -508,6 +508,8 @@ export function CameraTicketScannerModal({
                 </label>
                 <input
                   type="number"
+                  inputMode="decimal"
+                  min="0"
                   step="0.01"
                   className="input boxed"
                   value={editKilos}
