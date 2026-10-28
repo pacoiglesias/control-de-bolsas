@@ -56,15 +56,17 @@ export const SALDO_CAJA_ACTUAL = 451848.56;
 // Órdenes de Compra Maestras y Oficiales de Providencia
 // ---------------------------------------------------------------------------
 
-export const OC_TH_ACTIVE = '120267114400';   // Textil Hogar — Nava (No. Ord. 71/14400 · 9,500 kg · $418,000) - ACTIVA
-export const OC_GT_ACTIVE = '12026439834';    // Grupo Textil — Evelia / P4 (No. Ord. 43/9834 · 1,300 kg · $55,900) - ACTIVA
-export const OC_GT_9806 = '12026439806';      // Grupo Textil — Evelia / P4 (No. Ord. 43/9806 · 2,500 kg)
-export const OC_GT_9807 = '12026439807';      // Grupo Textil — Evelia / P4 (No. Ord. 43/9807 · 3,000 kg)
-export const OC_TH_14302 = '120267114302';    // Textil Hogar — Nava (No. Ord. 71/14302 · 8,000 kg)
-export const OC_GT_9784 = '12026439784';      // Grupo Textil — Evelia / P4 (No. Ord. 43/9784 · 5,100 kg)
-export const OC_TH_NAVA = '120267114114';     // Textil Hogar — Nava / Torre Lamuño (Histórica)
-export const OC_GT_EVELIA = '12026439713';    // Grupo Textil — Evelia / P4 (Histórica)
-export const OC_GT_NEW = '12026439753';       // Grupo Textil — P4-ALM (No. Ord. 43/9753 · 4,500 kg)
+// ─── 2 OCs ACTIVAS OFICIALES (27/Oct/2026) ───────────────────────────────────
+export const OC_TH_ACTIVE = '120267114400';   // ✅ ACTIVA · Textil Hogar — Nava (No. Ord. 71/14400 · 9,500 kg · $418,000 · $44/kg)
+export const OC_GT_ACTIVE = '12026439834';    // ✅ ACTIVA · Grupo Textil — Evelia / P4 (No. Ord. 43/9834 · 1,300 kg · $55,900 · $43/kg)
+// ─── OCs CERRADAS / HISTÓRICAS ──────────────────────────────────────────────
+export const OC_GT_9806 = '12026439806';      // ✅ CERRADA · Grupo Textil — Evelia / P4 (No. Ord. 43/9806 · 2,500 kg)
+export const OC_GT_9807 = '12026439807';      // ✅ CERRADA · Grupo Textil — Evelia / P4 (No. Ord. 43/9807 · 3,000 kg)
+export const OC_TH_14302 = '120267114302';    // ✅ CERRADA · Textil Hogar — Nava (No. Ord. 71/14302 · 8,000 kg · F-6392 amparada)
+export const OC_GT_9784 = '12026439784';      // ✅ CERRADA · Grupo Textil — Evelia / P4 (No. Ord. 43/9784 · 5,100 kg)
+export const OC_TH_NAVA = '120267114114';     // ✅ HISTÓRICA · Textil Hogar — Nava / Torre Lamuño
+export const OC_GT_EVELIA = '12026439713';    // ✅ HISTÓRICA · Grupo Textil — Evelia / P4
+export const OC_GT_NEW = '12026439753';       // ✅ CERRADA · Grupo Textil — P4-ALM (No. Ord. 43/9753 · 4,500 kg)
 
 export const MASTER_OCS = [
   OC_TH_ACTIVE,
@@ -189,8 +191,31 @@ export const FACTURAS_EN_REVISION_OFICIAL = [
 
 export const TOTAL_FACTURAS_REVISION_OFICIAL = 174580.00;
 export const TOTAL_KILOS_REVISION_OFICIAL = 3500.00;
-export const PENDIENTE_POR_FACTURAR_OFICIAL = 0.00;
-export const DEUDA_TOTAL_PROVIDENCIA_OFICIAL = 1070983.46; // $896,403.46 + $174,580.00
+
+// ─── Remisión 114400 — OC 120267114400 (TH · Nava) ───────────────────────────
+// Firmada por Ahmed Flores Grande · 27/Oct/2026 · 6,805.76 kg @ $44.00/kg
+// Estado: ENTREGADA FÍSICAMENTE — PENDIENTE DE TIMBRAR (invoiced: false)
+export const REMISION_TH_114400_FOLIO = '114400';
+export const REMISION_TH_114400_DATE  = '2026-10-27';
+export const REMISION_TH_114400_KG    = 6805.76;
+export const REMISION_TH_114400_PRICE = 44.00;
+export const REMISION_TH_114400_SUBTOTAL  = 299453.44; // 6805.76 × $44.00
+export const REMISION_TH_114400_TOTAL_IVA = 347365.99; // × 1.16
+export const REMISION_TH_114400_SIGNER    = 'Ahmed Flores Grande';
+
+/** Kilos físicamente entregados en planta que aún no tienen CFDI timbrado.
+ *  Fuente: Remisión 114400 (OC 71/14400 · TH Nava) — 27/Oct/2026. */
+export const PENDIENTE_POR_FACTURAR_OFICIAL = 6805.76;
+
+/** OC 71/14400: 9,500 kg pedidos. F-6438 ya facturada (1,325 kg) + Rem-114400
+ *  (6,805.76 kg pendiente) = 8,130.76 kg entregados total. Faltan 1,369.24 kg. */
+export const OC_TH_14400_KG_PEDIDOS     = 9500.00;
+export const OC_TH_14400_KG_ENTREGADOS  = 8130.76;  // F-6438(1325) + Rem-114400(6805.76)
+export const OC_TH_14400_KG_FACTURADOS  = 1325.00;  // Solo F-6438
+export const OC_TH_14400_KG_FALTANTES   = 1369.24;  // 9500 - 8130.76
+export const OC_TH_14400_KG_PATIO       = 6805.76;  // Rem-114400 sin timbrar
+
+export const DEUDA_TOTAL_PROVIDENCIA_OFICIAL = 1070983.46; // $896,403.46 cartera + $174,580.00 en revisión
 
 
 // ---------------------------------------------------------------------------

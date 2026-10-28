@@ -233,11 +233,12 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
     return oc === OC_TH_NAVA || oc === `OC-${OC_TH_NAVA}` || oc.includes('14114');
   }), [orders]);
 
-  // 1b. Detección Canónica de la OC Activa Oficial vigente para Nava (OC 120267114400 · 9,500 kg / OC 120267114302)
+  // 1b. Detección Canónica de la OC ACTIVA para Nava: Únicamente OC 120267114400 (9,500 kg · 71/14400)
+  // NOTA: OC 14302 ya está CERRADA (F-6392 timbrada). No mezclar.
   const navaActiveOrder = useMemo(() => (orders || []).find(o => {
     if (!o || (o as any).isDeleted) return false;
     const oc = (o.oc || o.folio || o.id || '').toUpperCase();
-    return oc === OC_TH_ACTIVE || oc === `OC-${OC_TH_ACTIVE}` || oc.includes('14400') || oc.includes('14302');
+    return oc === OC_TH_ACTIVE || oc === `OC-${OC_TH_ACTIVE}` || oc.includes('14400');
   }), [orders]);
 
   // 2. Detección Canónica de Evelia (Grupo Textil / P4 · OC 12026439713)
@@ -569,9 +570,9 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
   let navaCrDueDateStr = '04/Nov/2026';
   let navaFaltantesMaquila = 0;
 
-  // Si existe la OC Activa de Nava (OC 120267114302 · 8,000 kg), priorizarla en pantalla automáticamente
+  // OC 120267114400 (71/14400 · 9,500 kg @ $44) — Única OC activa de Nava
   if (navaActiveOrder) {
-    const activeKg = Number(navaActiveOrder.totalKilograms) || 8000.0;
+    const activeKg = Number(navaActiveOrder.totalKilograms) || 9500.0; // OC 14400 = 9,500 kg
     const activeEntregados = totalKilosEntregados(navaActiveOrder);
     const activeFacturados = totalKilosFacturados(navaActiveOrder);
     const validInvoices = (navaActiveOrder.invoices || []).filter(i => (i as any).status !== 'cancelled');
@@ -583,17 +584,17 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
 
     // Fechas dinámicas
     const navaEstimatedDate = toDate(navaActiveOrder.estimatedDeliveryDate);
-    navaFechaEntregaStr = navaEstimatedDate ? fmtDayAndDate(navaEstimatedDate) : '14 de Octubre';
+    navaFechaEntregaStr = navaEstimatedDate ? fmtDayAndDate(navaEstimatedDate) : '27 de Octubre';
 
     const navaCrInvoices = validInvoices.filter(i => !!i.collection?.contrareciboNumber);
     const navaCrNumbers = Array.from(new Set(navaCrInvoices.map(i => i.collection?.contrareciboNumber).filter(Boolean)));
     const latestCrInvoice = navaCrInvoices[0];
     const navaCrDueDate = toDate(latestCrInvoice?.creditCycle?.dueDate || latestCrInvoice?.collection?.contrareciboDate);
-    navaCrDueDateStr = navaCrDueDate ? fmtDate(navaCrDueDate) : '04/Nov/2026';
+    navaCrDueDateStr = navaCrDueDate ? fmtDate(navaCrDueDate) : 'Por definir';
 
     navaBadge = '🏢 TH · José Nava';
     navaBadgeColor = '#3b82f6';
-    navaOcLabel = `OC: ${navaActiveOrder.oc || '120267114302'} (${navaActiveOrder.folio || '71/14302'})`;
+    navaOcLabel = `OC: ${navaActiveOrder.oc || '120267114400'} (${navaActiveOrder.folio || '71/14400'})`;
     navaStatusLabel = pendientesFacturar > 0
       ? `⚡ ${Math.round(pendientesFacturar).toLocaleString('es-MX')} kg Entregados (Por Facturar)`
       : activeFacturados > 0
@@ -603,17 +604,17 @@ export const ExecutivePriorityAlerts: React.FC<ExecutivePriorityAlertsProps> = (
       : '📦 En Maquila';
 
     navaTitle = pendientesFacturar > 0
-      ? `OC 71/14302 · ${activeEntregados.toLocaleString('es-MX')} kg Entregados (${Math.round(pendientesFacturar).toLocaleString('es-MX')} kg por facturar · Faltan ${faltantesEntrega.toLocaleString('es-MX')} kg · Próxima Entrega: ${navaFechaEntregaStr})`
+      ? `OC 71/14400 · ${activeEntregados.toLocaleString('es-MX')} kg Entregados (${Math.round(pendientesFacturar).toLocaleString('es-MX')} kg por facturar · Faltan ${faltantesEntrega.toLocaleString('es-MX')} kg · Próxima Entrega: ${navaFechaEntregaStr})`
       : activeFacturados > 0
-      ? `OC 71/14302 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · ${activeFacturados.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg Facturados (${Math.round((activeFacturados / activeKg) * 100)}% · Faltan ${faltantesEntrega.toLocaleString('es-MX')} kg · Próxima Entrega: ${navaFechaEntregaStr})`
-      : `OC 71/14302 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · Abierta para Suministro (Próxima Entrega: ${navaFechaEntregaStr})`;
+      ? `OC 71/14400 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · ${activeFacturados.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg Facturados (${Math.round((activeFacturados / activeKg) * 100)}% · Faltan ${faltantesEntrega.toLocaleString('es-MX')} kg · Próxima Entrega: ${navaFechaEntregaStr})`
+      : `OC 71/14400 (${activeKg.toLocaleString('es-MX', { minimumFractionDigits: 0 })} kg) · Abierta para Suministro (Próxima Entrega: ${navaFechaEntregaStr})`;
 
     navaSubtitle = validInvoices.length > 0
-      ? `Orden oficial de Textil Hogar (José Nava). ${foliosStr} timbradas por un total de ${activeFacturados.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg (${money(totalFacturadoMonto)} con IVA). ${navaCrNumbers.length > 0 ? `CR ${navaCrNumbers.join(', ')} asignado (Pago: ${navaCrDueDateStr}). ` : ''}${faltantesEntrega > 0 ? `Restan ${faltantesEntrega.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg en proceso de maquila con Andrés (Próxima entrega: ${navaFechaEntregaStr}).` : 'Surtido de 8,000 kg completo.'}`
-      : `Nueva orden oficial de Textil Hogar (José Nava). ${activeEntregados > 0 ? `${activeEntregados.toLocaleString('es-MX')} kg entregados.` : ''} ${faltantesEntrega.toLocaleString('es-MX')} kg programados con Andrés para el ${navaFechaEntregaStr}.`;
+      ? `Orden oficial de Textil Hogar (José Nava). ${foliosStr} timbradas por un total de ${activeFacturados.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg (${money(totalFacturadoMonto)} con IVA). ${navaCrNumbers.length > 0 ? `CR ${navaCrNumbers.join(', ')} asignado (Pago: ${navaCrDueDateStr}). ` : ''}${pendientesFacturar > 0 ? `⚡ Remisión 114400 (${pendientesFacturar.toLocaleString('es-MX', { minimumFractionDigits: 2 })} kg · 27/Oct/2026) pendiente de timbrar. ` : ''}${faltantesEntrega > 0 ? `Restan ${faltantesEntrega.toLocaleString('es-MX', { minimumFractionDigits: 1 })} kg en proceso de maquila con Andrés (Próxima entrega: ${navaFechaEntregaStr}).` : 'Surtido de 9,500 kg completo.'}`
+      : `Orden oficial de Textil Hogar (José Nava). ${activeEntregados > 0 ? `${activeEntregados.toLocaleString('es-MX')} kg entregados en báscula (Remisión 114400 · 27/Oct/2026 · sin timbrar).` : ''} ${faltantesEntrega.toLocaleString('es-MX')} kg programados con Andrés para el ${navaFechaEntregaStr}.`;
 
-    navaBtn = pendientesFacturar > 0 ? '⚡ Facturar Entregas en Patio' : '📦 Ver OC 14302';
-    navaTargetOrderId = navaActiveOrder.id || 'oc-120267114302';
+    navaBtn = pendientesFacturar > 0 ? `⚡ Timbrar Remisión 114400 (${Math.round(pendientesFacturar).toLocaleString('es-MX')} kg)` : '📦 Ver OC 14400';
+    navaTargetOrderId = navaActiveOrder.id || 'oc-120267114400';
   }
 
   // ── Textos Dinámicos GT · Evelia ──────────────────────────────────────────

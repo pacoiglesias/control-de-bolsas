@@ -11,6 +11,7 @@ import {
   CANONICAL_GT_ITEMS_439834,
   type PurchaseOrder,
 } from '../../lib/types';
+import { PrefacturaRemisionWizard } from './PrefacturaRemisionWizard';
 
 interface PendingDeliveriesExecutiveBoardProps {
   orders: PurchaseOrder[];
@@ -57,6 +58,7 @@ export const PendingDeliveriesExecutiveBoard: React.FC<PendingDeliveriesExecutiv
   const toast = useToast();
   const [expandedOc, setExpandedOc] = useState<string | null>(null);
   const [isCalibrating, setIsCalibrating] = useState<boolean>(false);
+  const [showRemisionWizard, setShowRemisionWizard] = useState<boolean>(false);
 
   // 1. Detección Canónica de las 4 Órdenes de Compra Maestras y Vigentes
   const openOrdersData: OrderPendingCardData[] = useMemo(() => {
@@ -693,6 +695,34 @@ export const PendingDeliveriesExecutiveBoard: React.FC<PendingDeliveriesExecutiv
                   </button>
                 )}
 
+                {orderData.department === 'TH' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowRemisionWizard(true)}
+                    style={{
+                      flex: 1,
+                      minWidth: 140,
+                      padding: '8px 12px',
+                      borderRadius: 9,
+                      fontSize: 11.5,
+                      fontWeight: 800,
+                      background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)',
+                    }}
+                    title="Dividir la Remisión 114400 en múltiples partes editables con saldo en vivo"
+                  >
+                    <span>✂️</span>
+                    <span>Dividir Remisión</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => handleClaimOrderWhatsApp(orderData)}
@@ -719,6 +749,11 @@ export const PendingDeliveriesExecutiveBoard: React.FC<PendingDeliveriesExecutiv
           );
         })}
       </div>
+
+      {/* MODAL DEL WIZARD DE FACTURACIÓN PARCIAL (REMISIÓN 114400) */}
+      {showRemisionWizard && (
+        <PrefacturaRemisionWizard onClose={() => setShowRemisionWizard(false)} />
+      )}
     </section>
   );
 };
