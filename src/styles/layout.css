@@ -259,7 +259,7 @@ html, body {
   margin-left: auto;
   background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   color: #ffffff;
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-family: 'Inter', sans-serif;
   font-weight: 700;
   padding: 1px 7px;
@@ -301,7 +301,7 @@ html, body {
   transform: translateY(-1px);
 }
 .sidebar-foot .who {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: #94a3b8;
   padding: 3px 6px;
   word-break: break-all;
