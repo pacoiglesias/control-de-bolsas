@@ -110,6 +110,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Guardia operativa: el deploy lleva fallando desde julio-2026 en el
+      # paso siguiente por credenciales. Si falta la llave, fallar aquí con
+      # un mensaje claro en vez de un error críptico de firebase-action.
+      - name: Verificar llave de servicio configurada
+        run: |
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ] && [ -z "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ]; then
+            echo "::error::Falta GCP_SA_KEY (o FIREBASE_SERVICE_ACCOUNT) en GitHub → Settings → Secrets → Actions. Regenera la llave JSON de la cuenta de servicio con rol Firebase Admin en el proyecto control-de-bolsas-89c88 y guárdala como GCP_SA_KEY."
+            exit 1
+          fi
+
       - name: Deploy Firestore rules, indexes y Storage rules
         uses: w9jds/firebase-action@v14.11.1
         with:
