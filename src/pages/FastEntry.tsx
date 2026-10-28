@@ -484,13 +484,16 @@ export function FastEntry() {
                             <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-soft)', display: 'block', marginBottom: 4 }}>Kilos Nuevos</label>
                             <input
                               type="number"
+                              inputMode="decimal"
+                              min="0"
+                              step="any"
                               className="input boxed"
                               style={{ width: '100%', boxSizing: 'border-box', fontSize: 18, fontWeight: 900, textAlign: 'right', borderColor: willExceed ? 'var(--bad)' : (edit.kilos ? 'var(--ok)' : '') }}
                               placeholder="0"
                               value={edit.kilos}
                               onChange={e => setLogisticsEdits({ ...logisticsEdits, [m.order.id]: { ...edit, kilos: e.target.value }})}
                             />
-                            {willExceed && <div style={{ color: 'var(--bad)', fontSize: 10, marginTop: 3, fontWeight: 700 }}>⚠️ ¡Supera la OC!</div>}
+                            {willExceed && <div style={{ color: 'var(--bad)', fontSize: 12, marginTop: 3, fontWeight: 700 }}>⚠️ ¡Supera la OC!</div>}
                           </div>
                         </div>
                       </div>
@@ -536,13 +539,16 @@ export function FastEntry() {
                               <td className="num">
                                 <input
                                   type="number"
+                                  inputMode="decimal"
+                                  min="0"
+                                  step="any"
                                   className="input boxed"
                                   style={{ width: '100%', minWidth: 100, textAlign: 'right', borderColor: willExceed ? 'var(--bad)' : (edit.kilos ? 'var(--ok)' : '') }}
                                   placeholder="Kilos"
                                   value={edit.kilos}
                                   onChange={e => setLogisticsEdits({ ...logisticsEdits, [m.order.id]: { ...edit, kilos: e.target.value }})}
                                 />
-                                {willExceed && <div style={{color: 'var(--bad)', fontSize: 10, marginTop: 4, textAlign: 'right'}}>¡Supera la OC!</div>}
+                                {willExceed && <div style={{color: 'var(--bad)', fontSize: 12, marginTop: 4, textAlign: 'right'}}>¡Supera la OC!</div>}
                               </td>
                             </tr>
                           );

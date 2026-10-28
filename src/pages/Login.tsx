@@ -65,6 +65,7 @@ export default function Login() {
             className="input boxed"
             type="email"
             autoComplete="username"
+            enterKeyHint="next"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -76,6 +77,7 @@ export default function Login() {
             className="input boxed"
             type="password"
             autoComplete="current-password"
+            enterKeyHint="go"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
