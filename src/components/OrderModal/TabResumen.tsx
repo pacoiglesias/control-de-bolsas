@@ -244,6 +244,8 @@ export default function TabResumen() {
                 style={{ padding: '6px 10px', fontSize: 13, fontWeight: 700 }}
                 type="number"
                 step="0.01"
+                inputMode="decimal"
+                enterKeyHint="done"
                 defaultValue={form.totalKilograms}
                 onBlur={(e) => set('totalKilograms', e.target.value)}
                 disabled={readOnly}
@@ -284,6 +286,8 @@ export default function TabResumen() {
                 style={{ padding: '6px 10px', fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}
                 type="number"
                 step="0.01"
+                inputMode="decimal"
+                enterKeyHint="done"
                 onBlur={(e) => set('customSellPrice', e.target.value)}
                 defaultValue={form.customSellPrice}
                 disabled={readOnly}
@@ -297,6 +301,8 @@ export default function TabResumen() {
                 style={{ padding: '6px 10px', fontSize: 13, fontWeight: 700 }}
                 type="number"
                 step="0.01"
+                inputMode="decimal"
+                enterKeyHint="done"
                 onBlur={(e) => set('customCostPrice', e.target.value)}
                 defaultValue={form.customCostPrice}
                 disabled={readOnly}
@@ -336,6 +342,8 @@ export default function TabResumen() {
                 style={{ padding: '6px 10px', fontSize: 13 }}
                 type="number"
                 step="0.01"
+                inputMode="decimal"
+                enterKeyHint="done"
                 onBlur={(e) => set('customCommissionRate', e.target.value)}
                 defaultValue={form.customCommissionRate}
                 disabled={readOnly}
