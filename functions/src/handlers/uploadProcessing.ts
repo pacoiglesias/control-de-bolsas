@@ -7,6 +7,12 @@ import { XMLParser } from "fast-xml-parser";
 import { createHash } from "crypto";
 import { extractDocumentData, geminiApiKey } from "../ai/extractor";
 import { COL_ORDERS } from "./shared";
+import {
+  parseComplementPayments,
+  applyComplementPayment,
+  receiptKeyForComplement,
+  refreshOrderPaymentTotals,
+} from "./complementPayments";
 
 // FIX (v8.9.10, split de functions/src/index.ts): todo el procesamiento
 // de archivos subidos (PDF/XML -> expediente, vía OCR/XML determinista o
@@ -32,6 +38,33 @@ const MAX_UPLOAD_MB = 5;
 const docIdFor = (filePath: string) =>
   createHash("sha1").update(filePath).digest("hex").slice(0, 20);
 
+/** Convierte una fecha ISO del XML a Timestamp; si no se puede, ahora. */
+const toTimestamp = (iso?: string): Timestamp => {
+  const d = iso ? new Date(iso) : new Date(NaN);
+  return Number.isNaN(d.getTime()) ? Timestamp.now() : Timestamp.fromDate(d);
+};
+
+/**
+ * Deja una factura procesada por la lógica pura de complementPayments
+ * lista para Firestore: convierte sus fechas ISO a Timestamp y elimina
+ * claves indefinidas (Firestore las rechaza dentro de un arreglo).
+ */
+const toFirestoreInvoice = (inv: any): any => {
+  const collection = { ...(inv.collection || {}) };
+  if (typeof collection.paidAt === "string") {
+    collection.paidAt = toTimestamp(collection.paidAt);
+  }
+  if (Array.isArray(collection.paymentsHistory)) {
+    collection.paymentsHistory = collection.paymentsHistory.map((p: any) =>
+      typeof p.date === "string" ? { ...p, date: toTimestamp(p.date) } : p
+    );
+  }
+  for (const key of Object.keys(collection)) {
+    if (collection[key] === undefined) delete collection[key];
+  }
+  return { ...inv, collection };
+};
+
 async function processStorageFile(filePath: string, bucketName?: string) {
   const db = getFirestore();
   const ref = db.collection(COL_ORDERS).doc(docIdFor(filePath));
@@ -54,54 +87,137 @@ async function processStorageFile(filePath: string, bucketName?: string) {
       const tipo = comprobante.TipoDeComprobante;
       
       if (tipo === "P") {
-        // Es Complemento de Pago
-        const complemento = comprobante["cfdi:Complemento"];
-        const pagos = complemento ? (complemento["pago20:Pagos"] || complemento["pago10:Pagos"]) : null;
-        let pago = pagos ? (pagos["pago20:Pago"] || pagos["pago10:Pago"]) : null;
-        
-        if (!pago) throw new Error("Complemento de Pago sin nodo de Pago");
-        if (!Array.isArray(pago)) pago = [pago]; // Puede haber multiples nodos de pago
-        
-        const uuids: string[] = [];
-        for (const p of pago) {
-          let doctosRelacionados = p["pago20:DoctoRelacionado"] || p["pago10:DoctoRelacionado"] || [];
-          if (!Array.isArray(doctosRelacionados)) doctosRelacionados = [doctosRelacionados];
-          
-          for (const d of doctosRelacionados) {
-            if (d.IdDocumento) uuids.push(d.IdDocumento.toUpperCase());
-          }
-        }
-        
-        if (uuids.length > 0) {
+        // Complemento de Pago: liquida las facturas (parcial o total) con
+        // el criterio de la vía portal, no solo las marca como 'issued'.
+        // Idempotente por recibo CFDI_<uuidComplemento>_<invoiceId> en
+        // payment_receipts: reprocesar el mismo complemento no duplica.
+        const complementoDoc = parseComplementPayments(comprobante);
+        const allocations = complementoDoc.payments;
+        if (allocations.length === 0) {
+          logger.warn(`Complemento de Pago sin documentos relacionados: ${filePath}`);
+        } else {
+          const uuids = [...new Set(allocations.map((a) => a.uuid))];
           logger.info(`Buscando facturas para los UUIDs del complemento: ${uuids.join(", ")}`);
-          
-          let encontradas = 0;
+          let aplicadas = 0;
+          let duplicadas = 0;
+          let omitidas = 0;
           const chunkSize = 30; // Firestore limit for array-contains-any
-          
           for (let i = 0; i < uuids.length; i += chunkSize) {
             const chunk = uuids.slice(i, i + chunkSize);
-            const ordersSnapshot = await db.collection(COL_ORDERS).where('invoiceUuids', 'array-contains-any', chunk).get();
-            
-            for (const doc of ordersSnapshot.docs) {
-              const oData = doc.data();
-              const invoices = oData.invoices || [];
-              let modified = false;
-              
-              for (const inv of invoices) {
-                if (inv.uuid && chunk.includes(inv.uuid.toUpperCase())) {
-                  if (!inv.collection) inv.collection = {};
-                  inv.collection.complementStatus = 'issued';
-                  modified = true;
-                  encontradas++;
+            const ordersSnapshot = await db
+              .collection(COL_ORDERS)
+              .where("invoiceUuids", "array-contains-any", chunk)
+              .get();
+            for (const orderDoc of ordersSnapshot.docs) {
+              const counts = await db.runTransaction(async (txn) => {
+                const snap = await txn.get(orderDoc.ref);
+                if (!snap.exists) return { aplicadas: 0, duplicadas: 0, omitidas: 0 };
+                const oData = snap.data() as any;
+                const invoices = [...(oData.invoices || [])];
+                let modified = false;
+                let cAplicadas = 0;
+                let cDuplicadas = 0;
+                let cOmitidas = 0;
+                for (let idx = 0; idx < invoices.length; idx++) {
+                  const inv = invoices[idx];
+                  if (!inv.uuid) continue;
+                  const matching = allocations.filter(
+                    (a) => a.uuid === inv.uuid.toUpperCase()
+                  );
+                  if (matching.length === 0) continue;
+                  for (const allocation of matching) {
+                    const receiptKey = receiptKeyForComplement(complementoDoc.uuid, inv.id);
+                    const receiptRef = db.collection("payment_receipts").doc(receiptKey);
+                    const receiptSnap = await txn.get(receiptRef);
+                    const historyKeys = new Set<string>(
+                      (invoices[idx].collection?.paymentsHistory || [])
+                        .map((p: any) => p.receiptId)
+                        .filter(Boolean)
+                    );
+                    const result = applyComplementPayment(
+                      invoices[idx],
+                      allocation,
+                      complementoDoc.uuid,
+                      complementoDoc.fechaPago,
+                      receiptSnap.exists ? new Set([receiptKey]) : historyKeys
+                    );
+                    if (result.applied) {
+                      invoices[idx] = toFirestoreInvoice(result.invoice);
+                      if (!receiptSnap.exists) {
+                        txn.set(receiptRef, {
+                          receiptKey,
+                          orderId: orderDoc.id,
+                          invoiceId: inv.id,
+                          invoiceFolio: inv.folio || "",
+                          invoiceUuid: allocation.uuid,
+                          complementUuid: complementoDoc.uuid || "",
+                          amount: allocation.impPagado,
+                          paymentDate: toTimestamp(complementoDoc.fechaPago),
+                          status: "applied",
+                          appliedBy: "sistema-cfdi",
+                          source: "complemento_pago",
+                          appliedAt: FieldValue.serverTimestamp(),
+                        });
+                      }
+                      cAplicadas++;
+                      modified = true;
+                    } else if (result.skippedReason === "duplicate") {
+                      cDuplicadas++;
+                      if (invoices[idx].collection?.complementStatus !== "issued") {
+                        invoices[idx] = {
+                          ...invoices[idx],
+                          collection: { ...invoices[idx].collection, complementStatus: "issued" },
+                        };
+                        modified = true;
+                      }
+                    } else {
+                      cOmitidas++;
+                      logger.warn(
+                        `Complemento no aplicado a factura ${inv.folio || inv.id}: ${result.skippedReason}`
+                      );
+                      if (invoices[idx].collection?.complementStatus !== "issued") {
+                        invoices[idx] = {
+                          ...invoices[idx],
+                          collection: { ...invoices[idx].collection, complementStatus: "issued" },
+                        };
+                        modified = true;
+                      }
+                    }
+                  }
                 }
-              }
-              
-              if (modified) {
-                await doc.ref.update({ invoices, updatedAt: FieldValue.serverTimestamp() });
-              }
+                if (modified) {
+                  const totals = refreshOrderPaymentTotals(invoices);
+                  const invoiceUuids = [
+                    ...new Set([
+                      ...(oData.invoiceUuids || []),
+                      ...invoices
+                        .map((v: any) => String(v.uuid || "").toUpperCase())
+                        .filter(Boolean),
+                    ]),
+                  ];
+                  txn.update(orderDoc.ref, {
+                    invoices,
+                    invoiceStatuses: invoices.map(
+                      (v: any) => v.creditCycle?.status || "manual_review"
+                    ),
+                    invoiceUuids,
+                    "collection.paidAmount": totals.paidAmount,
+                    ...(totals.allSettled
+                      ? { "creditCycle.status": "paid", status: "paid" }
+                      : {}),
+                    updatedAt: FieldValue.serverTimestamp(),
+                  });
+                }
+                return { aplicadas: cAplicadas, duplicadas: cDuplicadas, omitidas: cOmitidas };
+              });
+              aplicadas += counts.aplicadas;
+              duplicadas += counts.duplicadas;
+              omitidas += counts.omitidas;
             }
           }
-          logger.info(`Complemento procesado. Se marcaron ${encontradas} facturas como 'issued'.`);
+          logger.info(
+            `Complemento procesado: ${aplicadas} abonos aplicados, ${duplicadas} duplicados omitidos, ${omitidas} omitidos.`
+          );
         }
       } else if (tipo === "I" || tipo === "E") {
         logger.info(`Procesando XML Factura - Folio: ${comprobante.Folio}`);
@@ -161,6 +277,9 @@ async function processStorageFile(filePath: string, bucketName?: string) {
           totalKilograms: totalKilos,
           creditCycle: { status: "manual_review" },
           invoices: [newInvoice],
+          // Sin este índice, un complemento posterior no encontraría esta
+          // factura (la búsqueda es por invoiceUuids, array-contains-any).
+          invoiceUuids: uuid ? [uuid.toUpperCase()] : [],
           invoiceStatuses: [newInvoice.creditCycle.status || "manual_review"],
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
