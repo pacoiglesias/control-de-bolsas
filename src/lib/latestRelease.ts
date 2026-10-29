@@ -7,15 +7,14 @@ export interface SystemRelease {
 }
 
 export const LATEST_RELEASE: SystemRelease = {
-  version: 'v9.16.4: Diagnóstico local de la app — registro técnico para revisar fallos',
+  version: 'v9.16.5: Complementos que liquidan, kilos a precio real y tablero de conciliación',
   date: '29 de Octubre de 2026',
-  time: '14:05',
-  summary: 'Registro de diagnóstico local reutilizando el patrón de Alacena 3.9.5: los últimos 200 eventos técnicos quedan guardados en el dispositivo y se consultan desde Configuración → Auditoría & Respaldo → Diagnóstico de la app, con Copiar, Limpiar y Actualizar. Si un guardado, la sesión o la conexión fallan, el fallo queda visible aunque Firestore falle, sin exponer ningún dato del negocio.',
+  time: '14:35',
+  summary: 'Tres mejoras aprobadas de la revisión: el complemento de pago CFDI ya liquida la factura (parcial o total) en cartera en vez de solo marcarla; la corroboración de kilos usa el precio real del documento (las OCs a $44 ya no salen infladas); y el tablero de conciliación lista en una sola vista las diferencias OC ↔ entregas ↔ facturas ↔ pagos.',
   highlights: [
-    'Vista "Diagnóstico de la app" en Configuración → Auditoría & Respaldo, con botones Copiar, Limpiar y Actualizar (mismo patrón que Alacena).',
-    'Eventos registrados: errores de guardado en Firestore (operación y código, sin rutas ni datos), cambios de sesión y expiración, errores de inicio de sesión, errores de la app y de promesas no controladas, y cambios de conexión.',
-    'Privacidad blindada: el registro nunca guarda nombres de clientes, importes, kilos, precios, folios, órdenes, documentos, RFC, correos ni teléfonos; el sanitizador borra esas claves aunque un llamador las pase por error.',
-    'Complementa al registro en Firestore existente: el local sobrevive cuando lo que falla es precisamente Firestore, la autenticación o la conexión.',
+    'Complemento de pago CFDI: al procesar un XML tipo P se lee ImpPagado e ImpSaldoInsoluto por factura, se acumula paidAmount y el estatus pasa a paid si se liquidó o a in_review si quedó resto, con recibo idempotente CFDI_<uuid>_<factura> para que reprocesar no duplique.',
+    'Kilos a precio real: la corroboración del OCR ya no divide entre $43 fijos; detecta el precio del documento (conceptos o precio repetido en el texto) y la factura 6438 queda en 1,325 kg, no en 1,355.81 kg. Los precios fijos de autoDocumentProcessor usan ahora el precio del documento o de la configuración.',
+    'Tablero de conciliación en el tablero ejecutivo: facturas sin OC, kilos entregados sin facturar, facturado por encima de lo entregado, precios distintos al de la OC y pagos parciales, cada renglón con botón para abrir su expediente.',
   ],
 };
 

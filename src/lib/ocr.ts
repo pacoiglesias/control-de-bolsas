@@ -1,5 +1,6 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import { parseOrdenDeCompra } from './ocParser';
+import { detectDocumentUnitPrice } from './ocrPrice';
 import {parseAndresStatementPositions,type SupplierStatement,type PositionedStatementText} from './andresStatement';
 import { parseProvidenciaPaymentPdf, parseProvidenciaContrareciboHtml } from './providenciaPortalParser';
 
@@ -674,14 +675,19 @@ export function parseOcrData(text: string): OcrResult {
     result.subTotal = Math.round((result.total / 1.16) * 100) / 100;
   }
 
-  // Corroboración analítica: Si el subtotal cuadra con tarifa oficial $43/kg
-  // y los kilos detectados fueron incompletos (ej. 500 kg detectados pero subtotal es 43,000 que equivale a 1,000 kg),
+  // Corroboración analítica: si el subtotal cuadra con el precio unitario
+  // REAL del documento y los kilos detectados fueron incompletos (ej. 500 kg
+  // detectados pero subtotal de 44,000 a $44/kg equivale a 1,000 kg),
   // asegurar el total amparado por el importe facturado.
+  // Antes dividía siempre entre $43 fijos, lo que inflaba los kilos de
+  // documentos a otro precio (factura 6438 a $44: 1,325 kg reales quedaban
+  // en 1,355.81 kg). Si no se detecta precio, se conserva el 43 heredado.
   if (result.subTotal && result.subTotal > 0) {
-    const kilosSegunSubtotal = Math.round((result.subTotal / 43.0) * 100) / 100;
+    const unitPrice = detectDocumentUnitPrice(text, result.kilos, result.subTotal, result.conceptos) ?? 43.0;
+    const kilosSegunSubtotal = Math.round((result.subTotal / unitPrice) * 100) / 100;
     if (!result.kilos || result.kilos <= 0) {
       result.kilos = kilosSegunSubtotal;
-    } else if (kilosSegunSubtotal > result.kilos && Math.abs((result.kilos * 43) - result.subTotal) > 10) {
+    } else if (kilosSegunSubtotal > result.kilos && Math.abs((result.kilos * unitPrice) - result.subTotal) > 10) {
       result.kilos = kilosSegunSubtotal;
     }
   }

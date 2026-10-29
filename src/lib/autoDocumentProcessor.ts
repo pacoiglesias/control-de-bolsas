@@ -4,6 +4,7 @@ import { db, PATHS } from './firebase';
 import type { PurchaseOrder, FinancialConfig, PurchaseOrderItem, Invoice, Delivery } from './types';
 import type { ExtractedDocumentData } from '../components/Recepcion/SmartDocumentDropzone';
 import { computeFinancials } from './finance';
+import { dominantItemUnitPrice } from './ocrPrice';
 import { camposInvoices } from './invoiceOps';
 
 export type DoubtType =
@@ -418,6 +419,13 @@ export async function executeAutoCreateOc(
         },
       ];
 
+  // Precio real del documento (partidas o precio declarado) antes que el
+  // 43 heredado: con OCs a $44 el fijo dejaba el precio de venta mal.
+  const docSalePrice =
+    dominantItemUnitPrice(items) ??
+    (orderSellPrice > 0 ? orderSellPrice : undefined) ??
+    config?.salePricePerKg;
+
   const newOrder: Record<string, any> = {
     id: orderId,
     folio,
@@ -443,14 +451,16 @@ export async function executeAutoCreateOc(
     invoices: [],
     invoiceStatuses: [],
     financials: {
-      salePricePerKg: 43.0,
-      costPricePerKg: 38.0,
+      salePricePerKg: docSalePrice ?? 43.0,
+      costPricePerKg: config?.costPricePerKg ?? 38.0,
       saleTotal: docData.subtotal || fin.saleTotal,
       invoiceTotal: docData.total || fin.invoiceTotal,
       commission: fin.commission,
       costTotal: fin.costTotal,
       netCashFlow: fin.netCashFlow,
       tradeMargin: fin.tradeMargin,
+      isEstimatedPrice: docSalePrice === undefined,
+      isEstimatedCost: config?.costPricePerKg === undefined,
     },
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
@@ -471,6 +481,17 @@ export async function executeAutoAssignInvoice(
   const orderRef = doc(db, PATHS.orders, targetOrder.id);
   const invKilos = docData.kilos || 0;
   const fin = computeFinancials(invKilos, config);
+  // Precio real de la factura (partidas o precio declarado) antes que el
+  // 43 heredado.
+  const declaredPrice = Number(
+    (docData as any)?.unitPrice ?? (docData as any)?.customSellPrice
+  );
+  const invSalePrice =
+    dominantItemUnitPrice(docData.items) ??
+    (declaredPrice > 0 ? declaredPrice : undefined) ??
+    targetOrder.customSellPrice ??
+    targetOrder.financials?.salePricePerKg ??
+    config?.salePricePerKg;
 
   const newInvoice: Invoice = {
     id: `inv-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -479,14 +500,16 @@ export async function executeAutoAssignInvoice(
     uuid: docData.uuid,
     kilos: invKilos,
     financials: {
-      salePricePerKg: 43.0,
-      costPricePerKg: 38.0,
+      salePricePerKg: invSalePrice ?? 43.0,
+      costPricePerKg: config?.costPricePerKg ?? 38.0,
       saleTotal: docData.subtotal || fin.saleTotal,
       invoiceTotal: docData.total || fin.invoiceTotal,
       costTotal: fin.costTotal,
       commission: fin.commission,
       netCashFlow: fin.netCashFlow,
       tradeMargin: fin.tradeMargin,
+      isEstimatedPrice: invSalePrice === undefined,
+      isEstimatedCost: config?.costPricePerKg === undefined,
     },
     creditCycle: {
       status: 'pending',
