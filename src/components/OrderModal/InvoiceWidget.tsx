@@ -235,7 +235,7 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
               </div>
             </Field>
             <Field label={<span style={{ display: 'inline-flex', alignItems: 'center' }}>Kilos Facturados <FinancialHelpTooltip concept="kilos_facturados" /></span>}>
-              <input className="input boxed mono" type="number" step="0.01" value={localInvoice.kilos} 
+              <input className="input boxed mono" type="number" step="0.01" inputMode="decimal" enterKeyHint="done" value={localInvoice.kilos} 
                 onChange={e => updateField(['kilos'], Number(e.target.value))}
                 onBlur={() => { if (hasChanges) handleSave(); }}
                 onKeyDown={e => { if (e.key === 'Enter') handleSave(); }}
@@ -499,6 +499,8 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                               type="number"
                               step="0.01"
                               min="0"
+                              inputMode="decimal"
+                              enterKeyHint="done"
                               className="input boxed mono"
                               value={it.quantity}
                               onChange={e => {
@@ -522,6 +524,8 @@ export function InvoiceWidget({ invoice, order, provName, config, dynamicConfig,
                               type="number"
                               step="0.5"
                               min="0"
+                              inputMode="decimal"
+                              enterKeyHint="done"
                               className="input boxed mono"
                               value={it.unitPrice}
                               onChange={e => {
