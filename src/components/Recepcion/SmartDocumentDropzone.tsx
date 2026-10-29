@@ -80,6 +80,8 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
   const [showTextModal, setShowTextModal] = useState(false);
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  // Progreso de "Cargar todos los listos": { done, total } o null si no está cargando.
+  const [batchLoadProgress, setBatchLoadProgress] = useState<{ done: number; total: number } | null>(null);
   const [activeDoubt, setActiveDoubt] = useState<{
     decision: OperationDecision & { type: 'doubt' };
     docData: ExtractedDocumentData;
@@ -805,6 +807,29 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
     }
   };
 
+  // Carga en secuencia todos los documentos listos y no duplicados de la
+  // bandeja (el mismo camino que el botón individual "Cargar en Formulario"),
+  // con contador de progreso y resumen final con los folios cargados.
+  const handleLoadAllReady = () => {
+    const targets = batchItems.filter(i => i.status === 'ready' && i.data && !i.duplicateMatch?.exists);
+    if (targets.length === 0 || batchLoadProgress) return;
+    setBatchLoadProgress({ done: 0, total: targets.length });
+    targets.forEach((item, idx) => {
+      window.setTimeout(() => {
+        onDocumentProcessed(item.data!);
+        const done = idx + 1;
+        setBatchLoadProgress({ done, total: targets.length });
+        if (done === targets.length) {
+          window.setTimeout(() => {
+            setBatchLoadProgress(null);
+            const folios = targets.map(t => t.data!.folio || t.data!.ocFolio || t.fileName).join(', ');
+            toast(`📥 ${targets.length} documento(s) cargado(s) en el formulario: ${folios}`, 'ok');
+          }, 0);
+        }
+      }, idx * 60);
+    });
+  };
+
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%', marginBottom: 20 }}>
       {/* Dropzone Principal */}
@@ -944,14 +969,29 @@ export function SmartDocumentDropzone({ onDocumentProcessed, onBatchProcessed }:
                 Bandeja de Carga por Lote ({batchItems.filter((i) => i.status === 'ready').length} de {batchItems.length} listos)
               </span>
             </div>
-            <button
-              type="button"
-              className="btn ghost"
-              onClick={() => setBatchItems([])}
-              style={{ fontSize: 12, padding: '4px 10px', borderRadius: 8 }}
-            >
-              ✕ Limpiar Bandeja
-            </button>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {batchItems.some(i => i.status === 'ready' && i.data && !i.duplicateMatch?.exists) && (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={handleLoadAllReady}
+                  disabled={!!batchLoadProgress}
+                  style={{ fontSize: 12, padding: '4px 10px', borderRadius: 8, fontWeight: 800, background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  {batchLoadProgress
+                    ? `⏳ Cargando ${batchLoadProgress.done} de ${batchLoadProgress.total}…`
+                    : `📥 Cargar todos los listos (${batchItems.filter(i => i.status === 'ready' && i.data && !i.duplicateMatch?.exists).length})`}
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => setBatchItems([])}
+                style={{ fontSize: 12, padding: '4px 10px', borderRadius: 8 }}
+              >
+                ✕ Limpiar Bandeja
+              </button>
+            </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
