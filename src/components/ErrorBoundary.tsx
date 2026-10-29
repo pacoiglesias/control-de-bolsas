@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { collection, doc, Timestamp } from 'firebase/firestore';
 import { safeSetDoc } from '../lib/safeFirestore';
+import { diagLog } from '../lib/appDiag';
 import { db } from '../lib/firebase';
 import { Card } from './ui';
 
@@ -25,6 +26,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo);
+    // Registro local: sobrevive aunque Firestore falle (el registro en la
+    // nube de abajo depende de la misma conexión). Solo nombre y mensaje
+    // técnico, recortado por el sanitizador; nunca pila ni datos.
+    diagLog('app_error', { errorName: error.name, message: error.message });
     try {
       const errorLogRef = doc(collection(db, 'error_logs'));
       safeSetDoc(errorLogRef, {
