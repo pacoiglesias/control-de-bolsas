@@ -124,20 +124,20 @@ jobs:
 
       # Autenticación sin llaves: WIF suplanta la cuenta de servicio Firebase Admin.
       - name: Autenticar en Google Cloud (WIF)
-              id: auth
+        id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/530396814626/locations/global/workloadIdentityPools/github-actions/providers/github-provider
           service_account: firebase-adminsdk-fbsvc@control-de-bolsas-89c88.iam.gserviceaccount.com
-                    token_format: access_token
-                              create_credentials_file: false
+          token_format: access_token
+          create_credentials_file: false
 
       # firebase-tools directo en el runner: la acción Docker w9jds no ve las
       # credenciales WIF que genera el paso de autenticación.
       - name: Deploy Firestore rules, indexes y Storage rules
-              px -y firebase-tools@14.11.1 deploy --only firestore:rules,firestore:indexes,storage --project control-de-bolsas-89c88 --non-interactive
-                      env:
-                                FIREBASE_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: npx -y firebase-tools@14.11.1 deploy --only firestore:rules,firestore:indexes,storage --project control-de-bolsas-89c88 --non-interactive
+        env:
+          FIREBASE_TOKEN: ${{ steps.auth.outputs.access_token }}
 
   # ════════════════════════════════════════════════════════════════════════════
   # JOB 3 — Cloud Functions (segundo en el orden)
@@ -169,19 +169,19 @@ jobs:
 
       # Autenticación sin llaves: WIF suplanta la cuenta de servicio Firebase Admin.
       - name: Autenticar en Google Cloud (WIF)
-              id: auth
+        id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/530396814626/locations/global/workloadIdentityPools/github-actions/providers/github-provider
           service_account: firebase-adminsdk-fbsvc@control-de-bolsas-89c88.iam.gserviceaccount.com
-                    token_format: access_token
-                              create_credentials_file: false
+          token_format: access_token
+          create_credentials_file: false
 
       # firebase-tools directo en el runner (ver job 2).
       - name: Deploy Cloud Functions
         run: npx -y firebase-tools@14.11.1 deploy --only functions --project control-de-bolsas-89c88 --non-interactive
-                env:
-                          FIREBASE_TOKEN: ${{ steps.auth.outputs.access_token }}
+        env:
+          FIREBASE_TOKEN: ${{ steps.auth.outputs.access_token }}
 
   # ════════════════════════════════════════════════════════════════════════════
   # JOB 4 — Hosting (último en el orden)
@@ -215,17 +215,17 @@ jobs:
 
       # Autenticación sin llaves: WIF suplanta la cuenta de servicio Firebase Admin.
       - name: Autenticar en Google Cloud (WIF)
-              id: auth
+        id: auth
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/530396814626/locations/global/workloadIdentityPools/github-actions/providers/github-provider
           service_account: firebase-adminsdk-fbsvc@control-de-bolsas-89c88.iam.gserviceaccount.com
-                    token_format: access_token
-                              create_credentials_file: false
+          token_format: access_token
+          create_credentials_file: false
 
       # firebase-tools directo en el runner (ver job 2).
       - name: Deploy Hosting
         run: npx -y firebase-tools@14.11.1 deploy --only hosting --project control-de-bolsas-89c88 --non-interactive
 
         env:
-                  FIREBASE_TOKEN: ${{ steps.auth.outputs.access_token }}
+          FIREBASE_TOKEN: ${{ steps.auth.outputs.access_token }}
