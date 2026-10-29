@@ -2,6 +2,7 @@ import type { NavigateFunction } from 'react-router-dom';
 import { PendingDeliveriesExecutiveBoard } from '../PendingDeliveriesExecutiveBoard';
 import { ExecutivePriorityAlerts } from '../ExecutivePriorityAlerts';
 import { PriorityActionQueue } from '../PriorityActionQueue';
+import { ReconciliationBoard } from '../ReconciliationBoard';
 import { ProvidenciaCaptureReview } from '../../Upload/ProvidenciaCaptureReview';
 import { CashFlowSimulatorWidget } from '../CashFlowSimulatorWidget';
 import { ExecutiveFinancialCard } from '../ExecutiveFinancialCard';
@@ -127,6 +128,13 @@ export function DashboardExecutiveView({
         onOpenQuickInvoice={onOpenQuickInvoice}
         onOpenQuickCollection={onOpenQuickCollection}
         onOpenQuickDelivery={onOpenQuickDelivery}
+      />
+
+      {/* 1.5 Tablero de conciliación: OC ↔ entregas ↔ facturas ↔ pagos */}
+      <ReconciliationBoard
+        orders={seguimientoOrders}
+        config={config}
+        onOpenOrder={(orderId) => nav(`/ordenes?abrir=${orderId}`)}
       />
 
       {/* 2. Vista Móvil de Tarjetas de OCs Activas con Acciones Directas */}
