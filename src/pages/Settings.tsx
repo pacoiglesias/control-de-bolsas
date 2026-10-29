@@ -19,6 +19,7 @@ import { camposInvoices } from '../lib/invoiceOps';
 import { money, percent } from '../lib/format';
 import { DEFAULT_CONFIG, DEFAULT_DEPARTMENTS, type FinancialConfig, type DepartmentConfig } from '../lib/types';
 import MigrationTools from '../components/MigrationTools';
+import { DiagnosticsModal } from '../components/DiagnosticsModal';
 import { confirmDialog } from '../lib/confirmDialog';
 import { triggerHaptic } from '../lib/hapticEngine';
 import { useTheme } from '../context/ThemeContext';
@@ -40,6 +41,7 @@ export default function Settings() {
   const [sysForm, setSysForm] = useState<SystemSettings>(settings);
   const [maquilaPin, setMaquilaPin] = useState('');
   const [maquilaPinLoaded, setMaquilaPinLoaded] = useState(false);
+  const [showDiag, setShowDiag] = useState(false);
   const [busy, setBusy] = useState(false);
   const [initialCash, setInitialCash] = useState<string>('169000');
 
@@ -1121,6 +1123,28 @@ export default function Settings() {
             style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
           >
             <MigrationTools />
+
+            <Card title="🔍 Diagnóstico de la app">
+              <div style={{ padding: 18 }}>
+                <p className="hint" style={{ marginTop: 0, marginBottom: 14 }}>
+                  Registro técnico local de los últimos 200 eventos: errores de
+                  guardado, cambios de sesión, conexión y fallos de la app. Solo
+                  datos técnicos: nunca guarda nombres de clientes, importes,
+                  folios ni contenido de documentos. Si algo falla, copia el
+                  registro y pásalo a quien lo revisa.
+                </p>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="btn"
+                  style={{ minHeight: 44, fontWeight: 700 }}
+                  onClick={() => setShowDiag(true)}
+                >
+                  🔍 Ver diagnóstico
+                </motion.button>
+              </div>
+            </Card>
+            {showDiag && <DiagnosticsModal onClose={() => setShowDiag(false)} />}
 
             <Card title="🧹 Auditoría de Datos: Purga Protegida de Pruebas">
               <div style={{ padding: 18 }}>
