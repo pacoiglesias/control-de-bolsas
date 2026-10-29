@@ -7,7 +7,11 @@ name: Deploy — Producción
 #   VITE_FIREBASE_STORAGE_BUCKET
 #   VITE_FIREBASE_MESSAGING_SENDER_ID
 #   VITE_FIREBASE_APP_ID
-#   FIREBASE_SERVICE_ACCOUNT   ← cuenta de servicio con rol "Firebase Admin"
+# AUTENTICACIÓN CI (desde 29-oct-2026): Workload Identity Federation, sin llaves JSON.
+# La creación de llaves está bloqueada por política de la organización, así que los
+# jobs 2-4 usan google-github-actions/auth (OIDC de GitHub) suplantando la cuenta
+# firebase-adminsdk-fbsvc@control-de-bolsas-89c88.iam.gserviceaccount.com (Firebase Admin).
+# Secretos restantes en GitHub → Settings → Secrets → Actions (solo para el build):
 
 on:
   push:
@@ -105,28 +109,26 @@ jobs:
     name: 2 · Deploy Reglas + Índices
     needs: quality
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Guardia operativa: el deploy lleva fallando desde julio-2026 en el
-      # paso siguiente por credenciales. Si falta la llave, fallar aquí con
-      # un mensaje claro en vez de un error críptico de firebase-action.
-      - name: Verificar llave de servicio configurada
-        run: |
-          if [ -z "${{ secrets.GCP_SA_KEY }}" ] && [ -z "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" ]; then
-            echo "::error::Falta GCP_SA_KEY (o FIREBASE_SERVICE_ACCOUNT) en GitHub → Settings → Secrets → Actions. Regenera la llave JSON de la cuenta de servicio con rol Firebase Admin en el proyecto control-de-bolsas-89c88 y guárdala como GCP_SA_KEY."
-            exit 1
-          fi
+      # Autenticación sin llaves: WIF suplanta la cuenta de servicio Firebase Admin.
+      - name: Autenticar en Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/530396814626/locations/global/workloadIdentityPools/github-actions/providers/github-provider
+          service_account: firebase-adminsdk-fbsvc@control-de-bolsas-89c88.iam.gserviceaccount.com
 
       - name: Deploy Firestore rules, indexes y Storage rules
         uses: w9jds/firebase-action@v14.11.1
         with:
           args: deploy --only firestore:rules,firestore:indexes,storage --project control-de-bolsas-89c88
         env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY || secrets.FIREBASE_SERVICE_ACCOUNT }}
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
           PROJECT_ID: control-de-bolsas-89c88
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -140,6 +142,9 @@ jobs:
     name: 3 · Deploy Cloud Functions
     needs: deploy_rules
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout
@@ -154,13 +159,18 @@ jobs:
       - name: Instalar dependencias (functions)
         run: npm --prefix functions ci
 
+      # Autenticación sin llaves: WIF suplanta la cuenta de servicio Firebase Admin.
+      - name: Autenticar en Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/530396814626/locations/global/workloadIdentityPools/github-actions/providers/github-provider
+          service_account: firebase-adminsdk-fbsvc@control-de-bolsas-89c88.iam.gserviceaccount.com
+
       - name: Deploy Cloud Functions
         uses: w9jds/firebase-action@v14.11.1
         with:
           args: deploy --only functions --project control-de-bolsas-89c88
         env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY || secrets.FIREBASE_SERVICE_ACCOUNT }}
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
           PROJECT_ID: control-de-bolsas-89c88
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -173,6 +183,9 @@ jobs:
     name: 4 · Deploy Hosting
     needs: deploy_functions
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout
@@ -185,11 +198,16 @@ jobs:
           name: dist
           path: dist/
 
+      # Autenticación sin llaves: WIF suplanta la cuenta de servicio Firebase Admin.
+      - name: Autenticar en Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/530396814626/locations/global/workloadIdentityPools/github-actions/providers/github-provider
+          service_account: firebase-adminsdk-fbsvc@control-de-bolsas-89c88.iam.gserviceaccount.com
+
       - name: Deploy Hosting
         uses: w9jds/firebase-action@v14.11.1
         with:
           args: deploy --only hosting --project control-de-bolsas-89c88
         env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY || secrets.FIREBASE_SERVICE_ACCOUNT }}
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
           PROJECT_ID: control-de-bolsas-89c88
