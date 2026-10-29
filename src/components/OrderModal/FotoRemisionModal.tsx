@@ -136,6 +136,8 @@ export function FotoRemisionModal({
             </label>
             <input
               type="number"
+              inputMode="decimal"
+              enterKeyHint="done"
               className="input boxed mono"
               value={kilos || ''}
               onChange={(e) => setKilos(Number(e.target.value))}
