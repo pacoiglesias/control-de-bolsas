@@ -11,6 +11,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { safeSetDoc } from '../lib/safeFirestore';
+import { diagLog } from '../lib/appDiag';
 import { logAction } from '../lib/logger';
 import { auth, db, PATHS } from '../lib/firebase';
 
@@ -54,6 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     return onAuthStateChanged(auth, async (u) => {
       if (!u) {
+        // Sin identidad en el registro: solo el hecho de que no hay sesión.
+        diagLog('auth_signed_out');
         setUser(null);
         setRole(null);
         setLoading(false);
@@ -70,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // verificar solo producia una app que carga y falla con
         // permission-denied en absolutamente todas las consultas.
         if (!u.emailVerified) {
+          diagLog('auth_unverified');
           try {
             await sendEmailVerification(u);
             setError(
@@ -115,8 +119,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(u);
           const userRole = snap.exists() ? (snap.data().role || 'viewer') : 'admin';
           setRole(isOwnerEmail ? 'admin' : userRole);
+          // Solo el rol, nunca el correo ni el uid.
+          diagLog('auth_signed_in', { role: isOwnerEmail ? 'admin' : userRole });
           setError(null);
         } else {
+          diagLog('auth_unauthorized');
           setError(
             `La cuenta ${u.email} no está autorizada. Crea el documento admins/${u.uid} en Firestore.`,
           );
@@ -125,6 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await fbSignOut(auth);
         }
       } catch {
+        diagLog('auth_role_check_error');
         setError('No se pudo verificar el permiso de administrador.');
         setUser(null);
         setRole(null);
@@ -152,7 +160,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // autenticado para escribir (isAuthenticatedUser() en las reglas).
           // Registrarlo aqui fallaria en silencio siempre, asi que no se
           // intenta: solo queda constancia de los inicios que si entraron.
+          // En el diagnóstico local sí queda el código del fallo (sin correo).
           const code = (e as { code?: string }).code ?? '';
+          diagLog('auth_signin_error', { errorCode: code || 'desconocido' });
           setError(authMessage(code));
           throw e;
         }
@@ -165,6 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           void logAction(result.user.email ?? 'google', 'Inicio de Sesión (Google)', { ok: true });
         } catch (e) {
           const code = (e as { code?: string }).code ?? '';
+          diagLog('auth_signin_error', { errorCode: code || 'desconocido', method: 'google' });
           setError(authMessage(code));
           throw e;
         }
