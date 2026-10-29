@@ -117,6 +117,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       # Autenticación sin llaves: WIF suplanta la cuenta de servicio Firebase Admin.
       - name: Autenticar en Google Cloud (WIF)
         uses: google-github-actions/auth@v2
@@ -124,12 +129,10 @@ jobs:
           workload_identity_provider: projects/530396814626/locations/global/workloadIdentityPools/github-actions/providers/github-provider
           service_account: firebase-adminsdk-fbsvc@control-de-bolsas-89c88.iam.gserviceaccount.com
 
+      # firebase-tools directo en el runner: la acción Docker w9jds no ve las
+      # credenciales WIF que genera el paso de autenticación.
       - name: Deploy Firestore rules, indexes y Storage rules
-        uses: w9jds/firebase-action@v14.11.1
-        with:
-          args: deploy --only firestore:rules,firestore:indexes,storage --project control-de-bolsas-89c88
-        env:
-          PROJECT_ID: control-de-bolsas-89c88
+        run: npx -y firebase-tools@14.11.1 deploy --only firestore:rules,firestore:indexes,storage --project control-de-bolsas-89c88 --non-interactive
 
   # ════════════════════════════════════════════════════════════════════════════
   # JOB 3 — Cloud Functions (segundo en el orden)
@@ -166,12 +169,9 @@ jobs:
           workload_identity_provider: projects/530396814626/locations/global/workloadIdentityPools/github-actions/providers/github-provider
           service_account: firebase-adminsdk-fbsvc@control-de-bolsas-89c88.iam.gserviceaccount.com
 
+      # firebase-tools directo en el runner (ver job 2).
       - name: Deploy Cloud Functions
-        uses: w9jds/firebase-action@v14.11.1
-        with:
-          args: deploy --only functions --project control-de-bolsas-89c88
-        env:
-          PROJECT_ID: control-de-bolsas-89c88
+        run: npx -y firebase-tools@14.11.1 deploy --only functions --project control-de-bolsas-89c88 --non-interactive
 
   # ════════════════════════════════════════════════════════════════════════════
   # JOB 4 — Hosting (último en el orden)
@@ -191,6 +191,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       # Recuperar el bundle compilado por el job quality (evita recompilar).
       - name: Descargar artefacto dist/
         uses: actions/download-artifact@v4
@@ -205,9 +210,6 @@ jobs:
           workload_identity_provider: projects/530396814626/locations/global/workloadIdentityPools/github-actions/providers/github-provider
           service_account: firebase-adminsdk-fbsvc@control-de-bolsas-89c88.iam.gserviceaccount.com
 
+      # firebase-tools directo en el runner (ver job 2).
       - name: Deploy Hosting
-        uses: w9jds/firebase-action@v14.11.1
-        with:
-          args: deploy --only hosting --project control-de-bolsas-89c88
-        env:
-          PROJECT_ID: control-de-bolsas-89c88
+        run: npx -y firebase-tools@14.11.1 deploy --only hosting --project control-de-bolsas-89c88 --non-interactive
