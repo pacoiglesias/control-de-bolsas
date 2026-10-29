@@ -51,6 +51,8 @@ export const OrderPriceModal: React.FC<OrderPriceModalProps> = ({
               <input
                 type="number"
                 step="0.01"
+                inputMode="decimal"
+                enterKeyHint="done"
                 value={sellPrice}
                 onChange={(e) => setSellPrice(parseFloat(e.target.value) || 0)}
                 style={{
@@ -102,6 +104,8 @@ export const OrderPriceModal: React.FC<OrderPriceModalProps> = ({
               <input
                 type="number"
                 step="0.01"
+                inputMode="decimal"
+                enterKeyHint="done"
                 value={costPrice}
                 onChange={(e) => setCostPrice(parseFloat(e.target.value) || 0)}
                 style={{
