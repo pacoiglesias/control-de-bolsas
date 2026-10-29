@@ -31,7 +31,24 @@ export function FastEntry() {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'logistics' | 'docs'>('logistics');
   const [logisticsEdits, setLogisticsEdits] = useState<Record<string, { kilos: string, date: string }>>({});
+  // Renglón con campo faltante/inválido: se marca en rojo y se enfoca al intentar guardar.
+  const [logisticsRowError, setLogisticsRowError] = useState<{ orderId: string; field: 'kilos' | 'date' } | null>(null);
   const [extractedDoc, setExtractedDoc] = useState<ExtractedDocumentData | null>(null);
+
+  // Enfoca el input visible del renglón (hay doble render móvil/escritorio: se
+  // elige el que está visible) y lo lleva a la vista.
+  const focusLogisticsInput = (orderId: string, field: 'kilos' | 'date') => {
+    const candidates = Array.from(document.querySelectorAll<HTMLElement>(
+      `[data-log-row="${CSS.escape(orderId)}"][data-log-field="${field}"]`,
+    ));
+    const visible = candidates.find(el => el.offsetParent !== null) || candidates[0];
+    if (!visible) return;
+    visible.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    (visible as HTMLInputElement).focus?.();
+  };
+  const clearLogisticsRowError = (orderId: string) => {
+    setLogisticsRowError(prev => (prev?.orderId === orderId ? null : prev));
+  };
 
 
   const activeOrders = useMemo(() => {
@@ -139,26 +156,44 @@ export function FastEntry() {
       return;
     }
 
-    // Validate over-delivery
+    // Validación por renglón: el primer renglón incompleto se marca en rojo,
+    // se lleva a la vista y se nombra en el aviso (folio/OC), en vez de
+    // bloquear todo el guardado con un mensaje genérico.
     for (const orderId of keys) {
       const val = logisticsEdits[orderId];
-      if (!val.kilos || !val.date) {
-        toast('Completa los kilos y la fecha de cada entrega antes de guardar.', 'bad');
+      const orderInfo = missingDeliveries.find(x => x.order.id === orderId);
+      const label = orderInfo ? (orderInfo.order.oc || orderInfo.order.folio) : orderId;
+      if (!val.kilos) {
+        setLogisticsRowError({ orderId, field: 'kilos' });
+        triggerHaptic('warning');
+        toast(`Faltan los kilos en el renglón de la OC ${label}. Complétalos para guardar.`, 'bad');
+        focusLogisticsInput(orderId, 'kilos');
         return;
       }
-      
+      if (!val.date) {
+        setLogisticsRowError({ orderId, field: 'date' });
+        triggerHaptic('warning');
+        toast(`Falta la fecha en el renglón de la OC ${label}. Complétala para guardar.`, 'bad');
+        focusLogisticsInput(orderId, 'date');
+        return;
+      }
+
       const k = Number(val.kilos);
       if (!Number.isFinite(k) || k <= 0) {
-        toast('Los kilos deben ser un número mayor a 0.', 'bad');
+        setLogisticsRowError({ orderId, field: 'kilos' });
+        triggerHaptic('warning');
+        toast(`Los kilos deben ser un número mayor a 0 en el renglón de la OC ${label}.`, 'bad');
+        focusLogisticsInput(orderId, 'kilos');
         return;
       }
-      
-      const orderInfo = missingDeliveries.find(x => x.order.id === orderId);
+
       if (!orderInfo) continue;
-      
+
       if (orderInfo.entregados + k > orderInfo.pedidos) {
+        setLogisticsRowError({ orderId, field: 'kilos' });
         triggerHaptic('warning');
         toast(`Error: La entrega de ${k} kg para la OC ${orderInfo.order.oc || orderInfo.order.folio} supera lo permitido. Faltante real: ${orderInfo.faltante} kg. El portal de Providencia rechazará esto.`, 'bad');
+        focusLogisticsInput(orderId, 'kilos');
         return;
       }
     }
@@ -475,9 +510,11 @@ export function FastEntry() {
                             <input
                               type="date"
                               className="input boxed"
-                              style={{ width: '100%', boxSizing: 'border-box', fontSize: 14 }}
+                              data-log-row={m.order.id}
+                              data-log-field="date"
+                              style={{ width: '100%', boxSizing: 'border-box', fontSize: 14, borderColor: logisticsRowError?.orderId === m.order.id && logisticsRowError.field === 'date' ? 'var(--bad)' : undefined }}
                               value={edit.date}
-                              onChange={e => setLogisticsEdits({ ...logisticsEdits, [m.order.id]: { ...edit, date: e.target.value }})}
+                              onChange={e => { clearLogisticsRowError(m.order.id); setLogisticsEdits({ ...logisticsEdits, [m.order.id]: { ...edit, date: e.target.value }}); }}
                             />
                           </div>
                           <div>
@@ -488,10 +525,12 @@ export function FastEntry() {
                               min="0"
                               step="any"
                               className="input boxed"
-                              style={{ width: '100%', boxSizing: 'border-box', fontSize: 18, fontWeight: 900, textAlign: 'right', borderColor: willExceed ? 'var(--bad)' : (edit.kilos ? 'var(--ok)' : '') }}
+                              data-log-row={m.order.id}
+                              data-log-field="kilos"
+                              style={{ width: '100%', boxSizing: 'border-box', fontSize: 18, fontWeight: 900, textAlign: 'right', borderColor: logisticsRowError?.orderId === m.order.id && logisticsRowError.field === 'kilos' ? 'var(--bad)' : (willExceed ? 'var(--bad)' : (edit.kilos ? 'var(--ok)' : '')) }}
                               placeholder="0"
                               value={edit.kilos}
-                              onChange={e => setLogisticsEdits({ ...logisticsEdits, [m.order.id]: { ...edit, kilos: e.target.value }})}
+                              onChange={e => { clearLogisticsRowError(m.order.id); setLogisticsEdits({ ...logisticsEdits, [m.order.id]: { ...edit, kilos: e.target.value }}); }}
                             />
                             {willExceed && <div style={{ color: 'var(--bad)', fontSize: 12, marginTop: 3, fontWeight: 700 }}>⚠️ ¡Supera la OC!</div>}
                           </div>
@@ -531,9 +570,11 @@ export function FastEntry() {
                                 <input
                                   type="date"
                                   className="input boxed"
-                                  style={{ width: '100%', minWidth: 130 }}
+                                  data-log-row={m.order.id}
+                                  data-log-field="date"
+                                  style={{ width: '100%', minWidth: 130, borderColor: logisticsRowError?.orderId === m.order.id && logisticsRowError.field === 'date' ? 'var(--bad)' : undefined }}
                                   value={edit.date}
-                                  onChange={e => setLogisticsEdits({ ...logisticsEdits, [m.order.id]: { ...edit, date: e.target.value }})}
+                                  onChange={e => { clearLogisticsRowError(m.order.id); setLogisticsEdits({ ...logisticsEdits, [m.order.id]: { ...edit, date: e.target.value }}); }}
                                 />
                               </td>
                               <td className="num">
@@ -543,10 +584,12 @@ export function FastEntry() {
                                   min="0"
                                   step="any"
                                   className="input boxed"
-                                  style={{ width: '100%', minWidth: 100, textAlign: 'right', borderColor: willExceed ? 'var(--bad)' : (edit.kilos ? 'var(--ok)' : '') }}
+                                  data-log-row={m.order.id}
+                                  data-log-field="kilos"
+                                  style={{ width: '100%', minWidth: 100, textAlign: 'right', borderColor: logisticsRowError?.orderId === m.order.id && logisticsRowError.field === 'kilos' ? 'var(--bad)' : (willExceed ? 'var(--bad)' : (edit.kilos ? 'var(--ok)' : '')) }}
                                   placeholder="Kilos"
                                   value={edit.kilos}
-                                  onChange={e => setLogisticsEdits({ ...logisticsEdits, [m.order.id]: { ...edit, kilos: e.target.value }})}
+                                  onChange={e => { clearLogisticsRowError(m.order.id); setLogisticsEdits({ ...logisticsEdits, [m.order.id]: { ...edit, kilos: e.target.value }}); }}
                                 />
                                 {willExceed && <div style={{color: 'var(--bad)', fontSize: 12, marginTop: 4, textAlign: 'right'}}>¡Supera la OC!</div>}
                               </td>
