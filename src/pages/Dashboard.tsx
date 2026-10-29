@@ -133,6 +133,9 @@ export default function Dashboard() {
       const target = e.target as HTMLElement | null;
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // No disparar atajos con un modal/diálogo abierto: el trabajo en curso
+      // (formularios de facturación, cobranza, pegado) se perdería al navegar.
+      if (document.querySelector('[role="dialog"], .modal-open')) return;
 
       const k = e.key.toLowerCase();
       if (k === 'n') {
@@ -379,14 +382,14 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-container" style={{ maxWidth: 1600, margin: '0 auto', paddingBottom: 60 }}>
-      {/* 0. Franja Superior de Pulso Financiero en Vivo */}
-      {viewMode !== 'executive' && <DashboardLiveTicker
+      {/* 0. Franja Superior de Pulso Financiero en Vivo (también en vista ejecutiva, la vista por defecto) */}
+      <DashboardLiveTicker
         saldoCaja={saldoCaja}
         porCobrar={k.porCobrar}
         deudaAndres={k.deudaAndres}
         providerName={settings?.providerName || 'Andrés'}
         kilosTotal={k.kilosTotal}
-      />}
+      />
 
       {/* 1. Encabezado Maestro y Filtro Departamental (TH vs GT) */}
       <DashboardHeaderToolbar
@@ -614,7 +617,7 @@ export default function Dashboard() {
         }}
         onQuickCollection={() => setShowQuickCollection(true)}
         onQuickPay={() => setShowQuickPay(true)}
-        onFastEntry={() => nav('/recepcion')}
+        onFastEntry={() => nav('/cobranza')}
         onMagicPaste={() => setShowMagicPaste(true)}
         onOpenCalculator={() => {
           const btn = document.querySelector('.floating-calc-trigger') as HTMLButtonElement | null;
