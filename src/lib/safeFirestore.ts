@@ -15,6 +15,20 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { cleanUndefined } from './cleanUndefined';
+import { diagLog } from './appDiag';
+
+/**
+ * Registra un fallo de escritura en el diagnóstico local (sin rutas de
+ * documentos ni datos: solo la operación y el código de Firebase).
+ * Nunca traga el error: quien llamó sigue recibiéndolo igual.
+ */
+function reportWriteError(op: 'set' | 'update' | 'add', err: unknown): void {
+  const code = (err as { code?: unknown } | null | undefined)?.code;
+  diagLog('firestore_write_error', {
+    op,
+    errorCode: typeof code === 'string' ? code : 'desconocido',
+  });
+}
 
 /**
  * Safe setDoc that accepts either a DocumentReference or path string,
@@ -30,7 +44,12 @@ export async function safeSetDoc<T = any>(
       ? (doc(db, ...docRefOrPath.split('/') as [string, ...string[]]) as DocumentReference<any>)
       : docRefOrPath;
   const sanitized = cleanUndefined(data);
-  return setDoc(ref, (sanitized || {}) as any, options ?? {});
+  try {
+    return await setDoc(ref, (sanitized || {}) as any, options ?? {});
+  } catch (err) {
+    reportWriteError('set', err);
+    throw err;
+  }
 }
 
 /**
@@ -55,8 +74,15 @@ export async function safeUpdateDoc(
     return await updateDoc(ref, sanitized as any);
   } catch (err: any) {
     if (err?.code === 'not-found' || (err?.message && err.message.includes('No document to update'))) {
-      return await setDoc(ref, sanitized as any, { merge: true });
+      diagLog('firestore_write_fallback', { op: 'update' });
+      try {
+        return await setDoc(ref, sanitized as any, { merge: true });
+      } catch (fallbackErr) {
+        reportWriteError('set', fallbackErr);
+        throw fallbackErr;
+      }
     }
+    reportWriteError('update', err);
     throw err;
   }
 }
@@ -74,5 +100,10 @@ export async function safeAddDoc<T = any>(
       ? (collection(db, ...colRefOrPath.split('/') as [string, ...string[]]) as CollectionReference<any>)
       : colRefOrPath;
   const sanitized = cleanUndefined(data);
-  return addDoc(ref, (sanitized || {}) as any) as Promise<DocumentReference<T>>;
+  try {
+    return (await addDoc(ref, (sanitized || {}) as any)) as DocumentReference<T>;
+  } catch (err) {
+    reportWriteError('add', err);
+    throw err;
+  }
 }
