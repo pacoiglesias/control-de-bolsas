@@ -1,6 +1,6 @@
 {
   "name": "control-bolsas-functions",
-  "version": "9.15.3",
+  "version": "9.16.3",
   "description": "Cloud Functions for Control Bolsas ERP",
   "main": "lib/index.js",
   "engines": {
