@@ -598,7 +598,7 @@ export default function TabEntregas() {
                                 <td>{it.description || it.code || '(sin descripción)'}</td>
                                 <td className="num mono">{it.quantity.toLocaleString('es-MX')}</td>
                                 <td className="num">
-                                  <input className="input boxed mono" type="number" step="0.01" style={{ width: 90 }}
+                                  <input className="input boxed mono" type="number" step="0.01" inputMode="decimal" enterKeyHint="done" style={{ width: 90 }}
                                     defaultValue={qtyEnEsta}
                                     onBlur={async e => {
                                       const val = Number(e.target.value);
