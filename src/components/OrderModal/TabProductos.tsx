@@ -176,7 +176,7 @@ export default function TabProductos() {
                     {form.items.map((it: PurchaseOrderItem, i: number) => (
                       <tr key={it.id}>
                         <td className="num">
-                          <input className="input boxed mono" type="number" step="0.01" style={{ width: 70 }}
+                          <input className="input boxed mono" type="number" step="0.01" inputMode="decimal" enterKeyHint="done" style={{ width: 70 }}
                             defaultValue={it.quantity} onBlur={e => updateItem(i, 'quantity', Number(e.target.value))} disabled={readOnly} />
                         </td>
                         <td className="num">
@@ -221,7 +221,7 @@ export default function TabProductos() {
                                 <span title={`Difiere del catálogo (${money(cp)})`} style={{ cursor: 'help', fontSize: 16 }}>⚠️</span>
                               ) : null;
                             })()}
-                            <input className="input boxed mono" type="number" step="0.01" style={{ width: 80 }}
+                            <input className="input boxed mono" type="number" step="0.01" inputMode="decimal" enterKeyHint="done" style={{ width: 80 }}
                               defaultValue={it.unitPrice} onBlur={e => updateItem(i, 'unitPrice', Number(e.target.value))} disabled={readOnly} />
                           </div>
                         </td>
