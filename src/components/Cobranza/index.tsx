@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useOrders } from '../../hooks/useOrders';
 import { useConfig } from '../../hooks/useConfig';
 import { useSystemSettings } from '../../hooks/useSystemSettings';
@@ -41,6 +41,16 @@ export default function Cobranza() {
   const { settings } = useSystemSettings();
   const toast = useToast();
   const location = useLocation();
+
+  // El rol viewer no tiene acceso a Cobranza: avisar el motivo una sola vez
+  // antes de redirigir, en vez de rebotarlo a inicio sin explicación.
+  const viewerNotifiedRef = useRef(false);
+  useEffect(() => {
+    if (role === 'viewer' && !viewerNotifiedRef.current) {
+      viewerNotifiedRef.current = true;
+      toast('Tu rol es solo consulta; pide acceso de operador para Cobranza.', 'info');
+    }
+  }, [role, toast]);
 
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   const [showAutoConciliador, setShowAutoConciliador] = useState(false);
